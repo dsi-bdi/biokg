@@ -6,7 +6,7 @@ from configparser import RawConfigParser
 
 from biokg.loader import *
 from biokg.util.extras import program_header
-from biokg.processing.parsers import UniProtTxtParser, HumanProteinAtlasParser
+from biokg.processing.parsers import UniProtTxtParser, HumanProteinAtlasParser, DrugBankParser
 from biokg.util.io import export_file_md5, file_has_valid_md5
 
 
@@ -74,6 +74,18 @@ def main():
     else:
         print(inf_sym + "HPA processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
 
-
+    # ----------------------------------------------------------------------
+    # processing DrugBank entries file
+    drugbank_parser = DrugBankParser()
+    drugbank_fps = [join(output_dp, fn) for fn in drugbank_parser.filelist]
+    invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in drugbank_fps]))
+    if invalid_md5:
+        drugbank_parser.parse_drugbank_xml(join(sources_dp, "drugbank_all_full_database.xml.zip"), output_dp)
+        for ofp in drugbank_fps:
+            export_file_md5(ofp)
+    else:
+        print(inf_sym + "DrugBank processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
+        
+        
 if __name__ == '__main__':
     main()
