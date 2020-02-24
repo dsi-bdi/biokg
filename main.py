@@ -6,7 +6,7 @@ from configparser import RawConfigParser
 
 from biokg.loader import *
 from biokg.util.extras import program_header
-from biokg.processing.parsers import UniProtTxtParser, HumanProteinAtlasParser, DrugBankParser
+from biokg.processing.parsers import UniProtTxtParser, HumanProteinAtlasParser, DrugBankParser, KeggParser
 from biokg.util.io import export_file_md5, file_has_valid_md5
 
 
@@ -29,7 +29,7 @@ def main():
     mkdir(sources_dp) if not isdir(sources_dp) else None
     mkdir(preprocessed_dp) if not isdir(preprocessed_dp) else None
     mkdir(output_dp) if not isdir(output_dp) else None
-
+    
     # load sources' urls
     sources_urls = RawConfigParser()
     sources_urls.read(sources_fp)
@@ -85,6 +85,18 @@ def main():
             export_file_md5(ofp)
     else:
         print(inf_sym + "DrugBank processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
+
+    
+    # ----------------------------------------------------------------------
+    # processing KEGG links
+    kegg_parser = KeggParser()
+    kegg_fp = join(output_dp, kegg_parser.filename)
+    invalid_md5 = not file_has_valid_md5(kegg_fp)
+    if invalid_md5:
+        kegg_parser.parse_kegg(output_dp)
+        export_file_md5(kegg_fp)
+    else:
+        print(inf_sym + "KEGG processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
         
         
 if __name__ == '__main__':

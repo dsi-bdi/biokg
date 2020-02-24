@@ -2,6 +2,7 @@
 import gzip
 import re
 import requests
+import time
 from os.path import join
 from ..util.extras import *
 from timeit import default_timer as timer
@@ -816,3 +817,133 @@ class DrugBankParser():
         
         for writer in output_writers.values():
             writer.close()
+
+
+class KeggParser():
+
+    def __init__(self):
+        self._base_uri = 'http://rest.kegg.jp/link'
+        self._filename = 'kegg_links.txt'
+        
+        self._kegg_dbs_full = ['pathway', 'brite', 'module', 'ko', 'genome', 'hsa', 'vg', 'ag', 'compound',
+             'glycan', 'reaction', 'rclass', 'enzyme', 'network', 'variant', 'disease' ,
+             'drug', 'dgroup', 'environ', 'atc', 'jtc', 'ndc', 'yj', 'pubmed']
+
+        self._kegg_dbs_select = ['pathway', 'brite', 'module', 'ko', 'hsa',
+                                'vg', 'ag', 'compound', 'glycan', 'reaction',
+                                'rclass', 'enzyme', 'network', 'variant', 
+                                'disease', 'drug', 'dgroup', 'environ' ,
+                                'atc', 'ndc', 'pubmed']
+
+        self._kegg_abv_names = {
+            'path': 'PATHWAY',
+            'br': 'BRITE',
+            'md': 'MODULE',
+            'ko': 'ONTOLOGY',
+            'hsa': 'HOMOSAPIEN',
+            'gn': 'GENOME',
+            'vg': 'VIRUSGENE',
+            'ag': 'ADDENDUMGENE',
+            'cpd': 'COMPOUND',
+            'gl': 'GLYCAN',
+            'rn': 'REACTION',
+            'rc': 'REACTIONCLASS',
+            'ec': 'ENZYME',
+            'ne': 'NETWORK',
+            'hsa_var': 'GENEVARIANT',
+            'ds': 'DISEASE',
+            'dr': 'DRUG',
+            'dg': 'DRUGGROUP',
+            'ev': 'ENVIRON',
+            'atc': 'ATC',
+            'jtc': 'JTC',
+            'ndc': 'NDC',
+            'yj': 'YJ',
+            'pmid': 'PUBMED'
+        }
+
+
+    @property
+    def filename(self):
+        """
+        Get KEGG filename 
+
+        Returns
+        -------
+        filename : str
+            the name of the KEGG output file
+        """
+        return self._filename
+
+
+    def __parse_uri_triples(self, uri, output_fd):
+        """
+        Parse any links returned by the given uri.
+        If the uri returns links they predicate will be determined by the 
+        subject and object types
+        
+        For example:
+            dr:D00162   ds:H00342
+        is written as 
+            dr:D00162	KEGG_DRUG_DISEASE	ds:H00342
+
+        Parameters
+        ----------
+        uri : str
+            the KEGG link rest endpoint 
+        output_fd : file
+            the output file
+        """
+        resp = requests.get(uri)
+        #Endpoint may not be a valid source/target database pair
+        if resp.ok:
+            pred = None
+            for line in resp.iter_lines(decode_unicode=True):
+                (sub, obj) = line.split('\t')
+                            
+                #Determine the predicate from the types of the subjects and objects
+                if pred is None:
+                    sub_type = sub.split(':')[0]
+                    obj_type = obj.split(':')[0]
+                    pred = f'KEGG_{self._kegg_abv_names[sub_type]}_{self._kegg_abv_names[obj_type]}'
+
+                output_fd.write(f'{sub}\t{pred}\t{obj}\n')
+            output_fd.flush()
+
+
+    def parse_kegg(self, output_dp, request_interval=0.2):
+        """
+        Parse KEGG link triples
+
+        Parameters
+        ----------
+        output_dp : str
+            path of the output directory
+
+        request_interval : str
+            time to sleep between requests (default 0.2 seconds)
+
+        """
+        print_section_header("Parsing KEGG links from (%s)" % 
+                    (bcolors.OKGREEN + self._base_uri + bcolors.ENDC))
+        nb_endpoints = 0
+        start = timer()
+        
+        #Make sure triples are unique
+        output_fd = SetWriter(join(output_dp, self.filename))
+        for index, target_db in enumerate(self._kegg_dbs_select):
+            for source_db in self._kegg_dbs_select[index+1:]:
+                #Retrieve edges for source, target db pair
+                link_uri = f'{self._base_uri}/{target_db}/{source_db}'
+                self.__parse_uri_triples(link_uri, output_fd)
+                nb_endpoints += 1
+                    
+                if nb_endpoints % 5 == 0:
+                    speed = nb_endpoints / (timer() - start)
+                    msg = prc_sym + "Processed (%d) endpoints.  Speed: (%1.5f) endpoints/second" % (nb_endpoints, speed)
+                    print("\r" + msg, end="", flush=True)
+                             
+                #Sleep between requests 
+                time.sleep(request_interval)
+        output_fd.close()
+        print(done_sym + " Took %1.2f Seconds." % (timer() - start), flush=True)
