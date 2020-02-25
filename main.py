@@ -30,7 +30,7 @@ def main():
     mkdir(sources_dp) if not isdir(sources_dp) else None
     mkdir(preprocessed_dp) if not isdir(preprocessed_dp) else None
     mkdir(output_dp) if not isdir(output_dp) else None
-
+    
     # load sources' urls
     sources_urls = RawConfigParser()
     sources_urls.read(sources_fp)
