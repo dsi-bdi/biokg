@@ -947,3 +947,273 @@ class KeggParser():
                 time.sleep(request_interval)
         output_fd.close()
         print(done_sym + " Took %1.2f Seconds." % (timer() - start), flush=True)
+
+
+class ReactomeParser():
+
+    def __init__(self):
+        """
+        Initialize Reactome Parser
+        """
+        self._filenames = [
+            "reactome_ppi.txt",
+            "reactome_protein_complex_rels.txt",
+            "reactome_pathway_rels.txt",
+            "reactome_complex_pathway_rels.txt",
+            "reactome_go_mapping.txt",
+            "reactome_omim_mapping.txt"
+        ]
+
+    @property
+    def filenames(self):
+        """
+        Get KEGG filename
+
+        Returns
+        -------
+        filename : str
+            the name of the KEGG output file
+        """
+        return self._filenames
+
+    def __parse_ppi(self, ppi_fp, output_fp):
+        """
+        Parse reactome protein protein interactions
+        quads output in format
+
+        <protein> INTERACTS_WITH <protein> <context> <references>
+
+        <protein> INTERACTS_WITH <protein> <context>
+
+        Parameters:
+        -----------
+        ppi_fp : str
+            The path to the reactome ppi file
+
+        output_fp: str
+            The path to the output file
+        """
+        output_fd = SetWriter(output_fp)
+        with open(ppi_fp, 'r') as ppi_fp:
+            # Skip header in first line
+            next(ppi_fp)
+            try:
+                for line in ppi_fp:
+                    parts = line.strip().split('\t')
+                    # Only include interactions between uniprot proteins
+                    if parts[0].startswith('uniprot') and parts[3].startswith('uniprot'):
+                        sub = parts[0].split(':')[1]
+                        obj = parts[3].split(':')[1]
+                        pred = sanatize_text(parts[6]).upper()
+                        context = parts[7].split(':')[1]
+                        if len(parts) >= 9:
+                            references = ','.join(parts[8].split('|'))
+                            output_fd.write(f'{sub}\tINTERACTS_WITH\t{obj}\t{context}\t{references}\n')
+                        else:
+                            output_fd.write(f'{sub}\tINTERACTS_WITH\t{obj}\t{context}\n')
+            except:
+                print(line)
+        output_fd.close()
+
+    def __parse_pathway_hierarchy(self, pathway_fp, output_fp):
+        """
+        Parse the reactome pathway hierarchy
+        triples output in format
+
+        <child_pathway> PARENT_PATHWAY <parent_pathway>
+
+        Parameters:
+        -----------
+        pathway_fp : str
+            The path to the reactome pathway rels file
+
+        output_fp: str
+            The path to the output file
+        """
+        output_fd = SetWriter(output_fp)
+        with open(pathway_fp, 'r') as pathway_fd:
+            for line in pathway_fd:
+                (parent, child) = line.strip().split('\t')
+                # filter out non human pathways
+                if parent.startswith('R-HSA') and child.startswith('R-HSA'):
+                    output_fd.write(f'{child}\tPARENT_PATHWAY\t{parent}\n')
+        output_fd.close()
+
+    def __parse_complex_pathway(self, comp_path_fp, output_fp):
+        """
+        Parse the reactome complex pathway relations
+        triples output in format
+
+        <complex> COMPLEX_PATHWAY <pathway>
+
+        <complex> COMPLEX_TOPLEVEL_PATHWAY <pathway>
+
+        Parameters:
+        -----------
+        comp_path_fp : str
+            The path to the reactome complex pathway rels file
+
+        output_fp: str
+            The path to the output file
+        """
+        output_fd = SetWriter(output_fp)
+        with open(comp_path_fp, 'r') as comp_path_fd:
+            # Skip header in first line
+            next(comp_path_fd)
+            for line in comp_path_fd:
+                (compl, pathway, tl_pathway) = line.strip().split('\t')
+                output_fd.write(f'{compl}\tCOMPLEX_PATHWAY\t{pathway}\n')
+                output_fd.write(f'{compl}\tCOMPLEX_TOPLEVEL_PATHWAY\t{tl_pathway}\n')
+        output_fd.close()
+
+    def __parse_protein_complex(self, prot_comp_fp, output_fp):
+        """
+        Parse the reactome complex pathway relations
+        triples output in format
+
+        <protein> PROTEIN_MEMBER_OF <complex> <references>
+
+        <protein> PROTEIN_MEMBER_OF <complex>
+
+
+        Parameters:
+        -----------
+        prot_comp_fp : str
+            The path to the reactome protein complex rels file
+
+        output_fp: str
+            The path to the output file
+        """
+        output_fd = SetWriter(output_fp)
+        with open(prot_comp_fp, 'r') as prot_comp_fd:
+            next(prot_comp_fd)
+            for line in prot_comp_fd:
+                parts = line.strip().split('\t')
+                compl = parts[0]
+                references = parts[4].replace('|', ',')
+
+                if parts[2] != '-':
+                    participants = parts[2].split('|')
+                    for participant in participants:
+                        (source, part_id) = participant.split(':')
+                        # only include uniprot proteins
+                        if source == 'uniprot':
+                            if references != '-':
+                                output_fd.write(f'{part_id}\tPROTEIN_MEMBER_OF\t{compl}\t{references}\n')
+                            else:
+                                output_fd.write(f'{part_id}\tPROTEIN_MEMBER_OF\t{compl}\n')
+
+        output_fd.close()
+
+    def __parse_omim_mappings(self, omim_mappings_fp, output_fp):
+        """
+        Parse the reactome omim mappings
+        triples output in format
+
+        <isoform> ISOFORM_MEMBER_OF <pathway>
+
+        Parameters:
+        -----------
+        omim_mappings_fp : str
+            The path to the reactome omim mappings file
+
+        output_fp: str
+            The path to the output file
+        """
+        output_fd = SetWriter(output_fp)
+        with open(omim_mappings_fp, 'r') as omim_mappings_fd:
+            # Skip header line
+            next(omim_mappings_fd)
+            for line in omim_mappings_fd:
+                (iso, pathway, name) = line.strip().split('\t')
+                # Filter out non human pathways
+                if pathway.startswith('R-HSA'):
+                    output_fd.write(f'{iso}\tISOFORM_MEMBER_OF\t{pathway}\n')
+            output_fd.close()
+
+    def __parse_go_mappings(self, mappings_fp, output_fp):
+        """
+        Parse the reactome gene association mappings. Restricted to humana (9606)
+        Triples output in format
+
+        <protein> <relation_type> <go> <reactome>
+
+        Parameters:
+        -----------
+        mappings_fp : str
+            The path to the reactome go mappings file
+
+        output_fp: str
+            The path to the output file
+        """
+        output_fd = SetWriter(output_fp)
+        with gzip.open(mappings_fp, 'rt') as mappings_fd:
+            # Skip version line
+            next(mappings_fd)
+            for line in mappings_fd:
+                parts = line.strip().split('\t')
+
+                # Only include human mappings
+                org = parts[12].split(':')[1]
+                if org != '9606':
+                    continue
+                uniprot_id = parts[1]
+                rel_type = parts[8]
+                go_id = parts[4]
+                reactome_id = parts[5].split(':')[1]
+                # Allow HSA (homo sapien) or NUL (multiple species)
+                if reactome_id.startswith('R-HSA') or reactome_id.startswith('R-NUL'):
+                    output_fd.write(f'{uniprot_id}\t{rel_type}\t{go_id}\t{reactome_id}\n')
+
+        output_fd.close()
+
+    def parse_reactome(self, source_dp, output_dp):
+        """
+        Parse reactome files
+
+        Parameters
+        ----------
+        source_dp : str
+            The path to the source directory
+        output_dp : str
+            The path to the output directory
+        """
+        start = timer()
+        nb_entries = 0
+
+        self.__parse_ppi(
+            join(source_dp, "reactome_ppi.txt"),
+            join(output_dp, "reactome_ppi.txt")
+        )
+        nb_entries += 1
+
+        self.__parse_protein_complex(
+            join(source_dp, "reactome_protein_complex_rels.txt"),
+            join(output_dp, "reactome_protein_complex_rels.txt")
+        )
+        nb_entries += 1
+
+        self.__parse_pathway_hierarchy(
+            join(source_dp, "reactome_pathway_rels.txt"),
+            join(output_dp, "reactome_pathway_rels.txt")
+        )
+        nb_entries += 1
+
+        self.__parse_complex_pathway(
+            join(source_dp, "reactome_complex_pathway_rels.txt"),
+            join(output_dp, "reactome_complex_pathway_rels.txt")
+        )
+        nb_entries += 1
+
+        self.__parse_go_mappings(
+            join(source_dp, "reactome_go_mapping.txt.gz"),
+            join(output_dp, "reactome_go_mapping.txt")
+        )
+        nb_entries += 1
+
+        self.__parse_omim_mappings(
+            join(source_dp, "reactome_omim_mapping.txt"),
+            join(output_dp, "reactome_omim_mapping.txt")
+        )
+        nb_entries += 1
+        print(done_sym + "Processed (%d) files. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
