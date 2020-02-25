@@ -6,8 +6,8 @@ from configparser import RawConfigParser
 
 from biokg.loader import *
 from biokg.util.extras import program_header
-from biokg.processing.parsers import UniProtTxtParser, \
-    HumanProteinAtlasParser, DrugBankParser, ReactomeParser
+from biokg.processing.parsers import UniProtTxtParser, HumanProteinAtlasParser,\
+    KeggParser, DrugBankParser, ReactomeParser
 from biokg.util.io import export_file_md5, file_has_valid_md5
 
 
@@ -36,9 +36,11 @@ def main():
     sources_urls.read(sources_fp)
 
     # download uniprot source data
+
     download_uniprot_files(sources_dp=sources_dp, srcs_cp=sources_urls)
 
     # download reactome source data
+
     download_reactome_data(sources_dp=sources_dp, srcs_cp=sources_urls)
 
     # download cellosaurus source data
@@ -86,6 +88,17 @@ def main():
             export_file_md5(ofp)
     else:
         print(inf_sym + "DrugBank processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
+
+    # ----------------------------------------------------------------------
+    # processing KEGG links
+    kegg_parser = KeggParser()
+    kegg_fp = join(output_dp, kegg_parser.filename)
+    invalid_md5 = not file_has_valid_md5(kegg_fp)
+    if invalid_md5:
+        kegg_parser.parse_kegg(output_dp)
+        export_file_md5(kegg_fp)
+    else:
+        print(inf_sym + "KEGG processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
 
     # ----------------------------------------------------------------------
     # processing Reactome entries file
