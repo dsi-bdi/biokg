@@ -80,16 +80,18 @@ def download_reactome_data(sources_dp, srcs_cp):
     """
     print_section_header("Downloading Reactome data files")
 
-    reactome_ppi_fp = join(sources_dp, "reactome_ppi.txt.gz")
-    reactome_pathway_rels_fp = join(sources_dp, "reactome_pathway_rels.txt.gz")
-    reactome_protein_complex_rels_fp = join(sources_dp, "reactome_protein_complex_rels.txt.gz")
-    reactome_complex_pathway_rels_fp = join(sources_dp, "reactome_complex_pathway_rels.txt.gz")
+    reactome_ppi_fp = join(sources_dp, "reactome_ppi.txt")
+    reactome_pathway_rels_fp = join(sources_dp, "reactome_pathway_rels.txt")
+    reactome_protein_complex_rels_fp = join(sources_dp, "reactome_protein_complex_rels.txt")
+    reactome_complex_pathway_rels_fp = join(sources_dp, "reactome_complex_pathway_rels.txt")
     reactome_go_mapping_fp = join(sources_dp, "reactome_go_mapping.txt.gz")
+    reactome_omim_mapping_fp = join(sources_dp, "reactome_omim_mapping.txt")
 
     download_file_md5_check(srcs_cp["reactome"]["reactome_ppi"], reactome_ppi_fp)
     download_file_md5_check(srcs_cp["reactome"]["reactome_pathway_rels"], reactome_pathway_rels_fp)
     download_file_md5_check(srcs_cp["reactome"]["reactome_protein_complex_rels"], reactome_protein_complex_rels_fp)
     download_file_md5_check(srcs_cp["reactome"]["reactome_complex_pathway_rels"], reactome_complex_pathway_rels_fp)
     download_file_md5_check(srcs_cp["reactome"]["reactome_go_mapping"], reactome_go_mapping_fp)
+    download_file_md5_check(srcs_cp["reactome"]["reactome_omim_mapping"], reactome_omim_mapping_fp)
 
     print_bold_line()

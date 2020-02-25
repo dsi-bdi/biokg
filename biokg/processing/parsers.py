@@ -2,6 +2,7 @@
 import gzip
 import re
 import requests
+import time
 from os.path import join
 from ..util.extras import *
 from timeit import default_timer as timer
@@ -646,7 +647,7 @@ class SetWriter:
         self._fd.close()
 
 
-class DrugBankParser():
+class DrugBankParser:
     """
     A DrugBank data parser
     """
@@ -953,3 +954,402 @@ class DrugBankParser():
         
         for writer in output_writers.values():
             writer.close()
+
+
+class KeggParser:
+
+    def __init__(self):
+        self._base_uri = 'http://rest.kegg.jp/link'
+        self._filename = 'kegg_links.txt'
+        
+        self._kegg_dbs_full = ['pathway', 'brite', 'module', 'ko', 'genome', 'hsa', 'vg', 'ag', 'compound',
+             'glycan', 'reaction', 'rclass', 'enzyme', 'network', 'variant', 'disease' ,
+             'drug', 'dgroup', 'environ', 'atc', 'jtc', 'ndc', 'yj', 'pubmed']
+
+        self._kegg_dbs_select = ['pathway', 'brite', 'module', 'ko', 'hsa',
+                                'vg', 'ag', 'compound', 'glycan', 'reaction',
+                                'rclass', 'enzyme', 'network', 'variant', 
+                                'disease', 'drug', 'dgroup', 'environ' ,
+                                'atc', 'ndc', 'pubmed']
+
+        self._kegg_abv_names = {
+            'path': 'PATHWAY',
+            'br': 'BRITE',
+            'md': 'MODULE',
+            'ko': 'ONTOLOGY',
+            'hsa': 'HOMOSAPIEN',
+            'gn': 'GENOME',
+            'vg': 'VIRUSGENE',
+            'ag': 'ADDENDUMGENE',
+            'cpd': 'COMPOUND',
+            'gl': 'GLYCAN',
+            'rn': 'REACTION',
+            'rc': 'REACTIONCLASS',
+            'ec': 'ENZYME',
+            'ne': 'NETWORK',
+            'hsa_var': 'GENEVARIANT',
+            'ds': 'DISEASE',
+            'dr': 'DRUG',
+            'dg': 'DRUGGROUP',
+            'ev': 'ENVIRON',
+            'atc': 'ATC',
+            'jtc': 'JTC',
+            'ndc': 'NDC',
+            'yj': 'YJ',
+            'pmid': 'PUBMED'
+        }
+
+
+    @property
+    def filename(self):
+        """
+        Get KEGG filename 
+
+        Returns
+        -------
+        filename : str
+            the name of the KEGG output file
+        """
+        return self._filename
+
+
+    def __parse_uri_triples(self, uri, output_fd):
+        """
+        Parse any links returned by the given uri.
+        If the uri returns links they predicate will be determined by the 
+        subject and object types
+        
+        For example:
+            dr:D00162   ds:H00342
+        is written as 
+            dr:D00162	KEGG_DRUG_DISEASE	ds:H00342
+
+        Parameters
+        ----------
+        uri : str
+            the KEGG link rest endpoint 
+        output_fd : file
+            the output file
+        """
+        resp = requests.get(uri)
+        # Endpoint may not be a valid source/target database pair
+        if resp.ok:
+            pred = None
+            for line in resp.iter_lines(decode_unicode=True):
+                (sub, obj) = line.split('\t')
+                            
+                # Determine the predicate from the types of the subjects and objects
+                if pred is None:
+                    sub_type = sub.split(':')[0]
+                    obj_type = obj.split(':')[0]
+                    pred = f'KEGG_{self._kegg_abv_names[sub_type]}_{self._kegg_abv_names[obj_type]}'
+
+                output_fd.write(f'{sub}\t{pred}\t{obj}\n')
+            output_fd.flush()
+
+    def parse_kegg(self, output_dp, request_interval=0.2):
+        """
+        Parse KEGG link triples
+
+        Parameters
+        ----------
+        output_dp : str
+            path of the output directory
+
+        request_interval : str
+            time to sleep between requests (default 0.2 seconds)
+
+        """
+        print_section_header("Parsing KEGG links from (%s)" % 
+                    (bcolors.OKGREEN + self._base_uri + bcolors.ENDC))
+        nb_endpoints = 0
+        start = timer()
+        
+        # Make sure triples are unique
+        output_fd = SetWriter(join(output_dp, self.filename))
+        for index, target_db in enumerate(self._kegg_dbs_select):
+            for source_db in self._kegg_dbs_select[index+1:]:
+                # Retrieve edges for source, target db pair
+                link_uri = f'{self._base_uri}/{target_db}/{source_db}'
+                self.__parse_uri_triples(link_uri, output_fd)
+                nb_endpoints += 1
+                    
+                if nb_endpoints % 5 == 0:
+                    speed = nb_endpoints / (timer() - start)
+                    msg = prc_sym + "Processed (%d) endpoints.  Speed: (%1.5f) endpoints/second" % (nb_endpoints, speed)
+                    print("\r" + msg, end="", flush=True)
+                             
+                #Sleep between requests 
+                time.sleep(request_interval)
+        output_fd.close()
+        print(done_sym + " Took %1.2f Seconds." % (timer() - start), flush=True)
+
+
+class ReactomeParser:
+
+    def __init__(self):
+        """
+        Initialize Reactome Parser
+        """
+        self._filenames = [
+            "reactome_ppi.txt",
+            "reactome_protein_complex_rels.txt",
+            "reactome_pathway_rels.txt",
+            "reactome_complex_pathway_rels.txt",
+            "reactome_go_mapping.txt",
+            "reactome_omim_mapping.txt"
+        ]
+
+    @property
+    def filenames(self):
+        """
+        Get KEGG filename
+
+        Returns
+        -------
+        filename : str
+            the name of the KEGG output file
+        """
+        return self._filenames
+
+    def __parse_ppi(self, ppi_fp, output_fp):
+        """
+        Parse reactome protein protein interactions
+        quads output in format
+
+        <protein> INTERACTS_WITH <protein> <context> <references>
+
+        <protein> INTERACTS_WITH <protein> <context>
+
+        Parameters:
+        -----------
+        ppi_fp : str
+            The path to the reactome ppi file
+
+        output_fp: str
+            The path to the output file
+        """
+        output_fd = SetWriter(output_fp)
+        with open(ppi_fp, 'r') as ppi_fp:
+            # Skip header in first line
+            next(ppi_fp)
+            try:
+                for line in ppi_fp:
+                    parts = line.strip().split('\t')
+                    # Only include interactions between uniprot proteins
+                    if parts[0].startswith('uniprot') and parts[3].startswith('uniprot'):
+                        sub = parts[0].split(':')[1]
+                        obj = parts[3].split(':')[1]
+                        pred = sanatize_text(parts[6]).upper()
+                        context = parts[7].split(':')[1]
+                        if len(parts) >= 9:
+                            references = ','.join(parts[8].split('|'))
+                            output_fd.write(f'{sub}\tINTERACTS_WITH\t{obj}\t{context}\t{references}\n')
+                        else:
+                            output_fd.write(f'{sub}\tINTERACTS_WITH\t{obj}\t{context}\n')
+            except:
+                print(line)
+        output_fd.close()
+
+    def __parse_pathway_hierarchy(self, pathway_fp, output_fp):
+        """
+        Parse the reactome pathway hierarchy
+        triples output in format
+
+        <child_pathway> PARENT_PATHWAY <parent_pathway>
+
+        Parameters:
+        -----------
+        pathway_fp : str
+            The path to the reactome pathway rels file
+
+        output_fp: str
+            The path to the output file
+        """
+        output_fd = SetWriter(output_fp)
+        with open(pathway_fp, 'r') as pathway_fd:
+            for line in pathway_fd:
+                (parent, child) = line.strip().split('\t')
+                # filter out non human pathways
+                if parent.startswith('R-HSA') and child.startswith('R-HSA'):
+                    output_fd.write(f'{child}\tPARENT_PATHWAY\t{parent}\n')
+        output_fd.close()
+
+    def __parse_complex_pathway(self, comp_path_fp, output_fp):
+        """
+        Parse the reactome complex pathway relations
+        triples output in format
+
+        <complex> COMPLEX_PATHWAY <pathway>
+
+        <complex> COMPLEX_TOPLEVEL_PATHWAY <pathway>
+
+        Parameters:
+        -----------
+        comp_path_fp : str
+            The path to the reactome complex pathway rels file
+
+        output_fp: str
+            The path to the output file
+        """
+        output_fd = SetWriter(output_fp)
+        with open(comp_path_fp, 'r') as comp_path_fd:
+            # Skip header in first line
+            next(comp_path_fd)
+            for line in comp_path_fd:
+                (compl, pathway, tl_pathway) = line.strip().split('\t')
+                output_fd.write(f'{compl}\tCOMPLEX_PATHWAY\t{pathway}\n')
+                output_fd.write(f'{compl}\tCOMPLEX_TOPLEVEL_PATHWAY\t{tl_pathway}\n')
+        output_fd.close()
+
+    def __parse_protein_complex(self, prot_comp_fp, output_fp):
+        """
+        Parse the reactome complex pathway relations
+        triples output in format
+
+        <protein> PROTEIN_MEMBER_OF <complex> <references>
+
+        <protein> PROTEIN_MEMBER_OF <complex>
+
+
+        Parameters:
+        -----------
+        prot_comp_fp : str
+            The path to the reactome protein complex rels file
+
+        output_fp: str
+            The path to the output file
+        """
+        output_fd = SetWriter(output_fp)
+        with open(prot_comp_fp, 'r') as prot_comp_fd:
+            next(prot_comp_fd)
+            for line in prot_comp_fd:
+                parts = line.strip().split('\t')
+                compl = parts[0]
+                references = parts[4].replace('|', ',')
+
+                if parts[2] != '-':
+                    participants = parts[2].split('|')
+                    for participant in participants:
+                        (source, part_id) = participant.split(':')
+                        # only include uniprot proteins
+                        if source == 'uniprot':
+                            if references != '-':
+                                output_fd.write(f'{part_id}\tPROTEIN_MEMBER_OF\t{compl}\t{references}\n')
+                            else:
+                                output_fd.write(f'{part_id}\tPROTEIN_MEMBER_OF\t{compl}\n')
+
+        output_fd.close()
+
+    def __parse_omim_mappings(self, omim_mappings_fp, output_fp):
+        """
+        Parse the reactome omim mappings
+        triples output in format
+
+        <isoform> ISOFORM_MEMBER_OF <pathway>
+
+        Parameters:
+        -----------
+        omim_mappings_fp : str
+            The path to the reactome omim mappings file
+
+        output_fp: str
+            The path to the output file
+        """
+        output_fd = SetWriter(output_fp)
+        with open(omim_mappings_fp, 'r') as omim_mappings_fd:
+            # Skip header line
+            next(omim_mappings_fd)
+            for line in omim_mappings_fd:
+                (iso, pathway, name) = line.strip().split('\t')
+                # Filter out non human pathways
+                if pathway.startswith('R-HSA'):
+                    output_fd.write(f'{iso}\tISOFORM_MEMBER_OF\t{pathway}\n')
+            output_fd.close()
+
+    def __parse_go_mappings(self, mappings_fp, output_fp):
+        """
+        Parse the reactome gene association mappings. Restricted to humana (9606)
+        Triples output in format
+
+        <protein> <relation_type> <go> <reactome>
+
+        Parameters:
+        -----------
+        mappings_fp : str
+            The path to the reactome go mappings file
+
+        output_fp: str
+            The path to the output file
+        """
+        output_fd = SetWriter(output_fp)
+        with gzip.open(mappings_fp, 'rt') as mappings_fd:
+            # Skip version line
+            next(mappings_fd)
+            for line in mappings_fd:
+                parts = line.strip().split('\t')
+
+                # Only include human mappings
+                org = parts[12].split(':')[1]
+                if org != '9606':
+                    continue
+                uniprot_id = parts[1]
+                rel_type = parts[8]
+                go_id = parts[4]
+                reactome_id = parts[5].split(':')[1]
+                # Allow HSA (homo sapien) or NUL (multiple species)
+                if reactome_id.startswith('R-HSA') or reactome_id.startswith('R-NUL'):
+                    output_fd.write(f'{uniprot_id}\t{rel_type}\t{go_id}\t{reactome_id}\n')
+
+        output_fd.close()
+
+    def parse_reactome(self, source_dp, output_dp):
+        """
+        Parse reactome files
+
+        Parameters
+        ----------
+        source_dp : str
+            The path to the source directory
+        output_dp : str
+            The path to the output directory
+        """
+        start = timer()
+        nb_entries = 0
+
+        self.__parse_ppi(
+            join(source_dp, "reactome_ppi.txt"),
+            join(output_dp, "reactome_ppi.txt")
+        )
+        nb_entries += 1
+
+        self.__parse_protein_complex(
+            join(source_dp, "reactome_protein_complex_rels.txt"),
+            join(output_dp, "reactome_protein_complex_rels.txt")
+        )
+        nb_entries += 1
+
+        self.__parse_pathway_hierarchy(
+            join(source_dp, "reactome_pathway_rels.txt"),
+            join(output_dp, "reactome_pathway_rels.txt")
+        )
+        nb_entries += 1
+
+        self.__parse_complex_pathway(
+            join(source_dp, "reactome_complex_pathway_rels.txt"),
+            join(output_dp, "reactome_complex_pathway_rels.txt")
+        )
+        nb_entries += 1
+
+        self.__parse_go_mappings(
+            join(source_dp, "reactome_go_mapping.txt.gz"),
+            join(output_dp, "reactome_go_mapping.txt")
+        )
+        nb_entries += 1
+
+        self.__parse_omim_mappings(
+            join(source_dp, "reactome_omim_mapping.txt"),
+            join(output_dp, "reactome_omim_mapping.txt")
+        )
+        nb_entries += 1
+        print(done_sym + "Processed (%d) files. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
