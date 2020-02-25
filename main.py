@@ -6,7 +6,8 @@ from configparser import RawConfigParser
 
 from biokg.loader import *
 from biokg.util.extras import program_header
-from biokg.processing.parsers import UniProtTxtParser, HumanProteinAtlasParser, DrugBankParser
+from biokg.processing.parsers import UniProtTxtParser, \
+    HumanProteinAtlasParser, DrugBankParser, ReactomeParser
 from biokg.util.io import export_file_md5, file_has_valid_md5
 
 
@@ -85,7 +86,20 @@ def main():
             export_file_md5(ofp)
     else:
         print(inf_sym + "DrugBank processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
-        
-        
+
+    # ----------------------------------------------------------------------
+    # processing Reactome entries file
+    reactome_parser = ReactomeParser()
+    reactome_fps = [join(preprocessed_dp, fn) for fn in reactome_parser.filenames]
+    invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in reactome_fps]))
+
+    if invalid_md5:
+        reactome_parser.parse_reactome(sources_dp, preprocessed_dp)
+        for ofp in reactome_fps:
+            export_file_md5(ofp)
+    else:
+        print(inf_sym + "Reactome processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
+
+
 if __name__ == '__main__':
     main()
