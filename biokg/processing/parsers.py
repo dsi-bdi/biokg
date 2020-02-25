@@ -446,8 +446,155 @@ class HumanProteinAtlasParser:
         cl_exp_fd.close()
 
 
+class CellosaurusParser:
+    """
+    Cellosaurus database parser
+    """
+    def __init__(self):
+        """
+        Initialise cellosaurus parser class instance
+        """
+        self.__filepath_map = {
+            "cat": "cl_cat.txt",
+            "map": "cl_map.txt",
+            "pmid": "cl_pmid.txt",
+            "geo": "cl_geo.txt"
+        }
+        self.__file_handlers_map = {
+            "map": None,
+            "cat": None,
+            "pmid": None,
+            "geo": None
+        }
+        self.filepath = ""
+        self.output_dp = ""
 
-class SetWriter():
+    def __init_output_files(self):
+        """ Initialise output files for writing
+        """
+        for key in self.__file_handlers_map:
+            self.__file_handlers_map[key] = open(join(self.output_dp, self.__filepath_map[key]), "w")
+
+    def __parse_cellosaurus_entry(self, entry_lines):
+        """ Parse an entry using a list of lines
+
+        Parameters
+        ----------
+        entry_lines : list
+            list of entry text lines
+
+        Returns
+        -------
+        dict
+            dictionary of information related to the entry
+        """
+        entry_map = {
+            "id": "",
+            "sy": "",
+            "ca": "",
+            "ac": "",
+            "ox": "",
+            "hi": "",
+            "di": "",
+            "rx": "",
+            "sx": "unknown",
+            "geo": "",
+            "pmid": ""
+        }
+
+        for line in entry_lines:
+            key, content = line.split("   ")
+            if key == "ID":
+                entry_map["id"] = content
+            elif key == "AC":
+                entry_map["ac"] = content
+            elif key == "SX":
+                entry_map["sx"] = content if "unspecified" not in content.lower() else "unknown"
+            elif key == "CA":
+                entry_map["ca"] = content
+            elif key == "HI":
+                cvcl_codes = re.findall("CVCL_\d+", content)
+                for c in cvcl_codes:
+                    entry_map["hi"] += c + ";"
+            elif key == "OX":
+                entry_map["ox"] += content.split("!")[-1].strip() + ";"
+            elif key == "SY":
+                entry_map["sy"] = ",".join([c.strip() for c in content.split(";")])
+            elif key == "DI":
+                entry_map["di"] = ";".join(content.split(";")[1:])
+            elif key == "DR":
+                if "GEO;" in content:
+                    entry_map["geo"] += content.split("GEO; ")[-1] + ";"
+            elif key == "RX":
+                pmid_codes = re.findall(PUBMED_ID_CODE, content)
+                for c in pmid_codes:
+                    entry_map["pmid"] += c[7:] + ";"
+        return entry_map
+
+    def __export_entry(self, entry_dict):
+        """ Export entity to corresponding output files
+
+        Parameters
+        ----------
+        entry_dict : dict
+            dictionary containing entity information
+        """
+        entry_code = entry_dict["ac"]
+        entry_id = entry_dict["id"].replace("#", "")
+        entry_names = entry_id + "," + entry_dict["sy"] if len(entry_dict["sy"]) > 1 else entry_id
+        entry_names = entry_names.replace("#", "")
+        entry_names_list = entry_names.split(",")
+        entry_disease = entry_dict["di"]
+        entry_sex = entry_dict["sx"]
+        entry_category = entry_dict["ca"]
+        entry_species = entry_dict["ox"][:-1].replace(";", ",") if entry_dict["ox"] != "" else "unknown"
+
+        entry_geos = ",".join([v for v in entry_dict["geo"].split(";") if v != ""])
+        entry_pmids = ",".join([v for v in entry_dict["pmid"].split(";") if v != ""])
+
+        # write to files
+        cat_file_line = f"{entry_code}\t{entry_names}\t{entry_species}\t{entry_sex}\t{entry_category}\t{entry_disease}\n"
+        self.__file_handlers_map["cat"].write(cat_file_line)
+        for name in entry_names_list:
+            self.__file_handlers_map["map"].write(f"{name}\t{entry_code}\n")
+
+        self.__file_handlers_map["geo"].write(f"{entry_code}\t{entry_geos}\n") if entry_geos != "" else None
+        self.__file_handlers_map["pmid"].write(f"{entry_code}\t{entry_pmids}\n") if entry_pmids != "" else None
+
+    def parse_db_file(self, filepath, output_dp):
+        """ Parse cellosaurus database text file
+
+        Parameters
+        ----------
+        filepath : str
+            absolute path to cellosaurus text database file
+        output_dp : str
+            absolute path of the output directory
+        """
+        self.filepath = filepath
+        self.output_dp = output_dp
+        self.__init_output_files()
+
+        db_fd = open(filepath)
+        # jump 55 lines until the start of the data
+        for _ in range(55):
+            db_fd.readline()
+
+        current_entry = []
+        for line in db_fd:
+            line = line.strip()
+            if line != "" and not line.startswith(" ") and not line.startswith("-"):
+                if line == "//":
+                    entry_dict = self.__parse_cellosaurus_entry(current_entry)
+                    current_entry = []
+                    self.__export_entry(entry_dict)
+                else:
+                    current_entry.append(line)
+        for file_handler in self.__file_handlers_map.values():
+            file_handler.close()
+
+
+class SetWriter:
     """
     Utility class for writing DrugBank statements
     Enforces uniqueness of statements between written between flushes
@@ -467,16 +614,13 @@ class SetWriter():
         self._clear_on_flush = True
         self._closed = False
 
-
     @property
     def clear_on_flush(self):
         return self._clear_on_flush
 
-
     @clear_on_flush.setter
     def clear_on_flush(self, value):
         self._clear_on_flush = value 
-
 
     def write(self, line):
         if self._closed:
@@ -487,7 +631,6 @@ class SetWriter():
         self._lineset.add(line)
         self._lines.append(line)
 
-
     def flush(self):
         if self._closed:
             raise ValueError('I/O operation on closed file')
@@ -495,7 +638,6 @@ class SetWriter():
         self._lines = []
         if self._clear_on_flush:
             self._lineset = set()
-
 
     def close(self):
         if len(self._lines) > 0:
@@ -594,7 +736,6 @@ class DrugBankParser():
             else:
                 output_fd.write(f'{drug_id}\t{rel_type}\t{poly_id}\t{action}\n')
 
-
     def __parse_drug_interaction(self, interaction_element, drug_id, output):
         """
         Parse a drug interaction
@@ -614,7 +755,6 @@ class DrugBankParser():
         dest_text = sanatize_text(dest.text)
         if dest_text is not None and dest_text != '':
             output.write(f'{drug_id}\tDRUG_INTERACTION\t{dest_text}\n')
-
 
     def __parse_atc_code(self, code_element, drug_id, output):
         """
@@ -643,7 +783,6 @@ class DrugBankParser():
         output.write(f'{drug_id}\tDRUG_ATC_C4\tATC:{code[0:5]}\n')
         output.write(f'{drug_id}\tDRUG_ATC_C5\tATC:{code}\n')
 
-
     def __parse_pathway(self, pathway_element, drug_id, output):
         """
         Parse a drug pathway
@@ -671,7 +810,6 @@ class DrugBankParser():
             enzyme_text = sanatize_text(enzyme.text)
             if enzyme_text is not None and enzyme_text != '':
                 output.write(f'{pid}\tPATHWAY_ENZYME\t{enzyme_text}\n')
-
 
     def __parse_drug(self, drug_element, output_writers):
         """
@@ -776,7 +914,6 @@ class DrugBankParser():
         for pathway in drug_element.findall('./db:pathways/db:pathway', self._ns):
             self.__parse_pathway(pathway, drug_id, pathway_fd)
 
-        
     def parse_drugbank_xml(self, filepath, output_dp, filename='full database.xml'):
         """ Parse Drugbank xml file
 
@@ -799,7 +936,7 @@ class DrugBankParser():
                 start = timer()
                 nb_entries = 0
                 for event, elem in ET.iterparse(xmlfile):
-                    #Check the length of the drug element as pathways also contain drug elements
+                    # Check the length of the drug element as pathways also contain drug elements
                     if elem.tag=='{http://www.drugbank.ca}drug' and len(elem) > 2:
                         nb_entries += 1
                         if nb_entries % 5 == 0:
@@ -809,7 +946,7 @@ class DrugBankParser():
                         self.__parse_drug(elem, output_writers)
                         elem.clear()
 
-                        #Flush the output buffers
+                        # Flush the output buffers
                         for writer in output_writers.values():
                             writer.flush()
                 print(done_sym + " Took %1.2f Seconds." % (timer() - start), flush=True)

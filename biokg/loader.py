@@ -39,7 +39,7 @@ def download_cellosaurus_data(sources_dp, srcs_cp):
         source urls config parser
     """
     print_section_header("Downloading Cellosaurus data files")
-    cellosaurus_data_fp = join(sources_dp, "cellosaurus_data.txt.gz")
+    cellosaurus_data_fp = join(sources_dp, "cellosaurus_data.txt")
     download_file_md5_check(srcs_cp["cellosaurus"]["cellosaurus_txt"], cellosaurus_data_fp)
     print_bold_line()
 

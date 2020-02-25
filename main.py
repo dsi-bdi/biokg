@@ -6,7 +6,7 @@ from configparser import RawConfigParser
 
 from biokg.loader import *
 from biokg.util.extras import program_header
-from biokg.processing.parsers import UniProtTxtParser, HumanProteinAtlasParser, DrugBankParser
+from biokg.processing.parsers import *
 from biokg.util.io import export_file_md5, file_has_valid_md5
 
 
@@ -63,28 +63,30 @@ def main():
 
     # ----------------------------------------------------------------------
     # processing HPA entries file
-    hpa_parser = HumanProteinAtlasParser()
-    hpa_files = ["hpa_antibodies.txt", "hpa_cellines_exp.txt", "hpa_tissues_exp.txt"]
-    hpa_fps = [join(output_dp, fn) for fn in hpa_files]
-    invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in hpa_fps]))
-    if invalid_md5:
-        hpa_parser.parse_database_xml(join(sources_dp, "proteinatlas.xml.gz"), preprocessed_dp)
-        for ofp in hpa_fps:
-            export_file_md5(ofp)
-    else:
-        print(inf_sym + "HPA processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
+    # hpa_parser = HumanProteinAtlasParser()
+    # hpa_files = ["hpa_antibodies.txt", "hpa_cellines_exp.txt", "hpa_tissues_exp.txt"]
+    # hpa_fps = [join(output_dp, fn) for fn in hpa_files]
+    # invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in hpa_fps]))
+    # if invalid_md5:
+    #     hpa_parser.parse_database_xml(join(sources_dp, "proteinatlas.xml.gz"), preprocessed_dp)
+    #     for ofp in hpa_fps:
+    #         export_file_md5(ofp)
+    # else:
+    #     print(inf_sym + "HPA processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
 
+    cell_parser = CellosaurusParser()
+    cell_parser.parse_db_file(join(sources_dp, "cellosaurus_data.txt"), preprocessed_dp)
     # ----------------------------------------------------------------------
     # processing DrugBank entries file
-    drugbank_parser = DrugBankParser()
-    drugbank_fps = [join(output_dp, fn) for fn in drugbank_parser.filelist]
-    invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in drugbank_fps]))
-    if invalid_md5:
-        drugbank_parser.parse_drugbank_xml(join(sources_dp, "drugbank_all_full_database.xml.zip"), output_dp)
-        for ofp in drugbank_fps:
-            export_file_md5(ofp)
-    else:
-        print(inf_sym + "DrugBank processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
+    # drugbank_parser = DrugBankParser()
+    # drugbank_fps = [join(output_dp, fn) for fn in drugbank_parser.filelist]
+    # invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in drugbank_fps]))
+    # if invalid_md5:
+    #     drugbank_parser.parse_drugbank_xml(join(sources_dp, "drugbank_all_full_database.xml.zip"), output_dp)
+    #     for ofp in drugbank_fps:
+    #         export_file_md5(ofp)
+    # else:
+    #     print(inf_sym + "DrugBank processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
         
         
 if __name__ == '__main__':
