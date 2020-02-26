@@ -5,6 +5,7 @@ import hashlib
 import os
 import tarfile
 import urllib.request
+import shutil
 from tempfile import gettempdir
 from timeit import default_timer as timer
 from os.path import join, basename, isfile, isdir, dirname
@@ -48,7 +49,7 @@ def download_file_with_cert(url, local_path, checksum=None, cert=None):
             raise ValueError("invalid file checksum [%s] for file: %s" % (downloaded_file_checksum, url))
 
     # move tmp file to desired file local path
-    os.rename(tmp_file, local_path)
+    shutil.move(tmp_file, local_path)
     return local_path
 
 
@@ -84,7 +85,7 @@ def download_file(url, local_path, checksum=None):
             raise ValueError("invalid file checksum [%s] for file: %s" % (downloaded_file_checksum, url))
 
     # move tmp file to desired file local path
-    os.rename(tmp_file, local_path)
+    shutil.move(tmp_file, local_path)
     return local_path
 
 
