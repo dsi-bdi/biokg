@@ -440,6 +440,7 @@ class HumanProteinAtlasParser:
                             if len(rna_data) == 4:
                                 _, cl, level, organ = rna_data
                                 cl_exp_fd.write("%s\t%s\t%s\t%s\n" % (entry_id, cl, organ, level))
+                entry.clear()
 
         print(done_sym + " Took %1.2f Seconds." % (timer() - start), flush=True)
         ab_data_fd.close()
@@ -1314,6 +1315,8 @@ class ReactomeParser:
         output_dp : str
             The path to the output directory
         """
+        print_section_header("Parsing Reactome files (%s)" % 
+                    (bcolors.OKGREEN + source_dp+'/reactome_*' + bcolors.ENDC))
         start = timer()
         nb_entries = 0
 

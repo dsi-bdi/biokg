@@ -67,7 +67,7 @@ def main():
     # processing HPA entries file
     hpa_parser = HumanProteinAtlasParser()
     hpa_files = ["hpa_antibodies.txt", "hpa_cellines_exp.txt", "hpa_tissues_exp.txt"]
-    hpa_fps = [join(output_dp, fn) for fn in hpa_files]
+    hpa_fps = [join(preprocessed_dp, fn) for fn in hpa_files]
     invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in hpa_fps]))
     if invalid_md5:
         hpa_parser.parse_database_xml(join(sources_dp, "proteinatlas.xml.gz"), preprocessed_dp)
@@ -85,10 +85,10 @@ def main():
     # ----------------------------------------------------------------------
     # processing DrugBank entries file
     drugbank_parser = DrugBankParser()
-    drugbank_fps = [join(output_dp, fn) for fn in drugbank_parser.filelist]
+    drugbank_fps = [join(preprocessed_dp, fn) for fn in drugbank_parser.filelist]
     invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in drugbank_fps]))
     if invalid_md5:
-        drugbank_parser.parse_drugbank_xml(join(sources_dp, "drugbank_all_full_database.xml.zip"), output_dp)
+        drugbank_parser.parse_drugbank_xml(join(sources_dp, "drugbank_all_full_database.xml.zip"), preprocessed_dp)
         for ofp in drugbank_fps:
             export_file_md5(ofp)
     else:
@@ -97,10 +97,10 @@ def main():
     # ----------------------------------------------------------------------
     # processing KEGG links
     kegg_parser = KeggParser()
-    kegg_fp = join(output_dp, kegg_parser.filename)
+    kegg_fp = join(preprocessed_dp, kegg_parser.filename)
     invalid_md5 = not file_has_valid_md5(kegg_fp)
     if invalid_md5:
-        kegg_parser.parse_kegg(output_dp)
+        kegg_parser.parse_kegg(preprocessed_dp)
         export_file_md5(kegg_fp)
     else:
         print(inf_sym + "KEGG processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
