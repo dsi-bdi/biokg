@@ -69,7 +69,7 @@ def download_hpa_data(sources_dp, srcs_cp):
 
 
 def download_reactome_data(sources_dp, srcs_cp):
-    """ Download cellosaurus database files
+    """ Download reactome database files
 
     Parameters
     ----------
@@ -93,5 +93,26 @@ def download_reactome_data(sources_dp, srcs_cp):
     download_file_md5_check(srcs_cp["reactome"]["reactome_complex_pathway_rels"], reactome_complex_pathway_rels_fp)
     download_file_md5_check(srcs_cp["reactome"]["reactome_go_mapping"], reactome_go_mapping_fp)
     download_file_md5_check(srcs_cp["reactome"]["reactome_omim_mapping"], reactome_omim_mapping_fp)
+
+    print_bold_line()
+
+
+def download_phosphosite_data(sources_dp, srcs_cp):
+    """ Download phosphositeplus database files
+
+    Parameters
+    ----------
+    sources_dp : str
+        the sources directory path
+    srcs_cp : RawConfigParser
+        source urls config parser
+    """
+    print_section_header("Downloading PhosphoSitePlus data files")
+
+    phosphorylation_site_fp = join(sources_dp, "phosphorylation_site.txt.gz")
+    kinase_substrate_fp = join(sources_dp, "kinase_substrate.txt.gz")
+
+    download_file_md5_check(srcs_cp["phosphositeplus"]["phosphorylation_site"], phosphorylation_site_fp)
+    download_file_md5_check(srcs_cp["phosphositeplus"]["kinase_substrate"], kinase_substrate_fp)
 
     print_bold_line()

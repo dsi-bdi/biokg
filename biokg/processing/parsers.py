@@ -1315,7 +1315,7 @@ class ReactomeParser:
         output_dp : str
             The path to the output directory
         """
-        print_section_header("Parsing Reactome files (%s)" % 
+        print_section_header("Parsing Reactome files (%s)" %
                     (bcolors.OKGREEN + source_dp+'/reactome_*' + bcolors.ENDC))
         start = timer()
         nb_entries = 0
@@ -1356,3 +1356,141 @@ class ReactomeParser:
         )
         nb_entries += 1
         print(done_sym + "Processed (%d) files. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
+
+
+class PhosphositeParser():
+    def __init__(self):
+        """
+        Initialize Phosphosite Parser
+        """
+        self._filenames = [
+            "phosphorylation_site.txt",
+            "kinase_substrate.txt"
+        ]
+
+    @property
+    def filenames(self):
+        """
+        Get Phosphosite filenames
+
+        Returns
+        -------
+        filename : str
+            the name of the Phosphosite output files
+        """
+        return self._filenames
+
+    def __parse_sites(self, source_fp, output_fp):
+        """
+        Parse the phosphosite phosphorylation site file. Restricted to human
+        Triples output in format
+
+        <substrate> PHOSPHORYLATION_SITE <site>
+
+        Parameters:
+        -----------
+        source_fp : str
+            The path to the phosphosite phosphorylation site file
+
+        output_fp: str
+            The path to the output file
+
+        Returns:
+        --------
+        nb_entires : int
+            The number of entries output
+        """
+        nb_entries = 0
+        output_fd = SetWriter(output_fp)
+        with gzip.open(source_fp, 'rt') as source_fd:
+            data_start = False
+            for line in source_fd:
+                # skip header and lines prior
+                if line.startswith('GENE'):
+                    data_start = True
+                    continue
+                if data_start:
+                    parts = line.split('\t')
+                    acc_id = parts[2]
+                    site = parts[4]
+                    organism = parts[6]
+                    # filter out entry if non-human
+                    if organism == 'human':
+                        nb_entries += 1
+                        output_fd.write(f'{acc_id}\tPHOSPHORYLATION_SITE\t{site}\n')
+        output_fd.close()
+        return nb_entries
+
+    def __parse_kinase_substrate(self, source_fp, output_fp):
+        """
+        Parse the phosphosite kinase_substrate file. Restricted to human
+        Quads output in format
+
+        <kinase> PHOSPHORYLATES <substrate> <site>
+
+        Parameters:
+        -----------
+        source_fp : str
+            The path to the phosphosite kinase_substrate file
+
+        output_fp : str
+            The path to the output file
+
+        Returns:
+        --------
+        nb_entires : int
+            The number of entries output
+        """
+        nb_entries = 0
+        output_fd = SetWriter(output_fp)
+        # the kinase_substrate file uses ISO-8859-1 encoding
+        with gzip.open(source_fp, 'rt', encoding='ISO-8859-1') as source_fd:
+            data_start = False
+            for line in source_fd:
+                # skip header and lines prior
+                if line.startswith('GENE'):
+                    data_start = True
+                    continue
+                if data_start:
+                    parts = line.split('\t')
+                    kin_acc_id = parts[2]
+                    kin_organism = parts[3]
+                    sub_acc_id = parts[6]
+                    sub_organism = parts[8]
+                    site = parts[9]
+                    # filter out entry if either kinase or substrate are non-human
+                    if kin_organism == 'human' and sub_organism == 'human':
+                        nb_entries += 1
+                        output_fd.write(f'{kin_acc_id}\tPHOSPHORYLATES\t{sub_acc_id}\t{site}\n')
+        output_fd.close()
+        return nb_entries
+
+    def parse_phosphosite(self, source_dp, output_dp):
+        """
+        Parse phosphosite files
+
+        Parameters
+        ----------
+        source_dp : str
+            The path to the source directory
+        output_dp : str
+            The path to the output directory
+        """
+        print_section_header(
+            "Parsing PhosphoSitePlus files (%s & %s)" %
+            (bcolors.OKGREEN + source_dp + '/phosphorylation_site.txt.gz' + bcolors.ENDC,
+             bcolors.OKGREEN + source_dp + '/kinase_substrate.txt.gz' + bcolors.ENDC)
+        )
+        start = timer()
+        nb_entries = 0
+        nb_entries += self.__parse_sites(
+            join(source_dp, 'phosphorylation_site.txt.gz'),
+            join(output_dp, 'phosphorylation_site.txt')
+        )
+
+        nb_entries += self.__parse_kinase_substrate(
+            join(source_dp, 'kinase_substrate.txt.gz'),
+            join(output_dp, 'kinase_substrate.txt')
+        )
+
+        print(done_sym + "Processed (%d) entries. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
