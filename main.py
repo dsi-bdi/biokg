@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from os.path import join, isdir
+from os.path import join, isdir, exists
 from os import mkdir
 from configparser import RawConfigParser
 
@@ -84,16 +84,21 @@ def main():
 
     # ----------------------------------------------------------------------
     # processing DrugBank entries file
+    drugbank_source_fp = join(sources_dp, "drugbank_all_full_database.xml.zip")
     drugbank_parser = DrugBankParser()
     drugbank_fps = [join(preprocessed_dp, fn) for fn in drugbank_parser.filelist]
     invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in drugbank_fps]))
     if invalid_md5:
-        drugbank_parser.parse_drugbank_xml(join(sources_dp, "drugbank_all_full_database.xml.zip"), preprocessed_dp)
-        for ofp in drugbank_fps:
-            export_file_md5(ofp)
+        # Skip drugbank processing if the file is not in the source folder
+        if exists(drugbank_source_fp):
+            drugbank_parser.parse_drugbank_xml(drugbank_source_fp, preprocessed_dp)
+            for ofp in drugbank_fps:
+                export_file_md5(ofp)
+        else:
+            print(fail_sym + "Drugbank source not available >>> Skipping Drugbank processing")
     else:
         print(inf_sym + "DrugBank processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
-
+    
     # ----------------------------------------------------------------------
     # processing KEGG links
     kegg_parser = KeggParser()

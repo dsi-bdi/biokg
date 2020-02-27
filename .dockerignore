@@ -1,0 +1,11 @@
+# exclude everything by default
+**
+
+# include sources.ini, requirements.txt and the python files
+!requirements.txt
+!sources.ini
+!main.py
+!biokg
+
+# exclude the __pycache__ folders
+**/__pycache__
