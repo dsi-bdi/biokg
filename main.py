@@ -50,6 +50,9 @@ def main():
 
     # download ctd source data
     download_ctd_data(sources_dp=sources_dp, srcs_cp=sources_urls)
+    
+    # download phosphosite source data
+    download_phosphosite_data(sources_dp=sources_dp, srcs_cp=sources_urls)
 
     # ----------------------------------------------------------------------
     # processing uniprot entries file
@@ -138,6 +141,19 @@ def main():
             export_file_md5(ofp)
     else:
         print(inf_sym + "CTD processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
+    
+    # ----------------------------------------------------------------------
+    # processing Phosphosite entries file
+    phosphosite_parser = PhosphositeParser()
+    phosphosite_fps = [join(preprocessed_dp, fn) for fn in phosphosite_parser.filenames]
+    invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in phosphosite_fps]))
+
+    if invalid_md5:
+        phosphosite_parser.parse_phosphosite(sources_dp, preprocessed_dp)
+        for ofp in phosphosite_fps:
+            export_file_md5(ofp)
+    else:
+        print(inf_sym + "PhosphoSitePlus processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
 
 
 if __name__ == '__main__':
