@@ -48,6 +48,9 @@ def main():
     # download hpa source data
     download_hpa_data(sources_dp=sources_dp, srcs_cp=sources_urls)
 
+    # download ctd source data
+    download_ctd_data(sources_dp=sources_dp, srcs_cp=sources_urls)
+
     # ----------------------------------------------------------------------
     # processing uniprot entries file
     uniprot_parser = UniProtTxtParser()
@@ -98,7 +101,7 @@ def main():
             print(fail_sym + "Drugbank source not available >>> Skipping Drugbank processing")
     else:
         print(inf_sym + "DrugBank processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
-    
+
     # ----------------------------------------------------------------------
     # processing KEGG links
     kegg_parser = KeggParser()
@@ -122,6 +125,19 @@ def main():
             export_file_md5(ofp)
     else:
         print(inf_sym + "Reactome processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
+
+    # ----------------------------------------------------------------------
+    # processing CTD entries file
+    ctd_parser = CTDParser()
+    ctd_fps = [join(preprocessed_dp, fn) for fn in ctd_parser.filenames]
+    invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in ctd_fps]))
+
+    if invalid_md5:
+        ctd_parser.parse_ctd(sources_dp, preprocessed_dp)
+        for ofp in ctd_fps:
+            export_file_md5(ofp)
+    else:
+        print(inf_sym + "CTD processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
 
 
 if __name__ == '__main__':

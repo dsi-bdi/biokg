@@ -95,3 +95,26 @@ def download_reactome_data(sources_dp, srcs_cp):
     download_file_md5_check(srcs_cp["reactome"]["reactome_omim_mapping"], reactome_omim_mapping_fp)
 
     print_bold_line()
+
+
+def download_ctd_data(sources_dp, srcs_cp):
+    """ Download ctd database files
+
+    Parameters
+    ----------
+    sources_dp : str
+        the sources directory path
+    srcs_cp : RawConfigParser
+        source urls config parser
+    """
+    print_section_header("Downloading CTD data files")
+
+    ctd_chemical_id_mapping = join(sources_dp,'CTD_chemicals.tsv.gz')
+    ctd_gene_id_mapping =join(sources_dp,'CTD_genes.tsv.gz')
+    ctd_chemical_gene_interactions = join(sources_dp,'CTD_chem_gene_ixns.tsv.gz')
+
+    download_file_md5_check(srcs_cp["ctd"]["chemical_id_mapping"], ctd_chemical_id_mapping)
+    download_file_md5_check(srcs_cp["ctd"]["gene_id_mapping"], ctd_gene_id_mapping)
+    download_file_md5_check(srcs_cp["ctd"]["chemical_gene_interactions"], ctd_chemical_gene_interactions)
+
+    print_bold_line()

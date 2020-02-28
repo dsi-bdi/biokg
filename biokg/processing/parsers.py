@@ -1356,3 +1356,189 @@ class ReactomeParser:
         )
         nb_entries += 1
         print(done_sym + "Processed (%d) files. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
+
+
+class CTDParser:
+
+    def __init__(self):
+        """
+        Initialize CTD Parser
+        """
+        self._filenames = [
+            "ctd_drug_protein_interactions.txt"
+        ]
+
+    @property
+    def filenames(self):
+        """
+        Get CTD filenames
+
+        Returns
+        -------
+        filename : str
+            the name of the CTD output files
+        """
+        return self._filenames
+
+    def __parse_chemical_id_map(self, chemical_id_mapping_fp):
+        """
+        Parse ctd chemical id to drugbank id mapping
+
+        Parameters:
+        -----------
+        chemical_id_mapping_fp : str
+            The path to the ctd chemical id mapping file
+
+        Returns:
+        --------
+        chem_id_map : dict
+            Dictionary mapping chemical ids to a list of drugbank ids
+        """
+        chem_id_map = {}
+        with gzip.open(chemical_id_mapping_fp, 'rt') as chem_map_fd:
+            for line in chem_map_fd:
+                if line.startswith('#'):
+                    continue
+                parts = line.strip().split('\t')
+                if len(parts) >= 9:
+                    chem_id = parts[1].replace('MESH:', '')
+                    drug_ids = parts[8].split('|')
+                    if len(drug_ids) > 0:
+                        chem_id_map[chem_id] = drug_ids
+
+        return chem_id_map
+
+    def __parse_gene_id_map(self, gene_id_mapping_fp, swiss_prot_human_fp):
+        """
+        Parse ctd gene id to uniprot protein id mapping
+
+        Parameters:
+        -----------
+        gene_id_mapping_fp : str
+            The path to the ctd gene id mapping file
+
+        Returns:
+        --------
+        gene_id_map : dict
+            Dictionary mapping gene ids to a list of uniprot protein ids
+        """
+        gene_id_map = {}
+        valid_proteins = set()
+        with gzip.open(swiss_prot_human_fp, 'rt') as human_protein_fd:
+            for line in human_protein_fd:
+                valid_proteins.add(line.strip())
+
+        with gzip.open(gene_id_mapping_fp, 'rt') as gene_map_fd:
+            for line in gene_map_fd:
+                if line.startswith('#'):
+                    continue
+                parts = line.strip().split('\t')
+                if len(parts) >= 8:
+                    gene_id = parts[2]
+                    prot_ids = parts[7].split('|')
+                    valid_prot_ids = []
+                    for prot_id in prot_ids:
+                        if prot_id in valid_proteins:
+                            valid_prot_ids.append(prot_id)
+                    if len(valid_prot_ids) > 0:
+
+                        gene_id_map[gene_id] = valid_prot_ids
+
+        return gene_id_map
+
+    def __parse_chemical_gene_interactions(self, source_fp, output_fp):
+        """
+        Parse ctd chemical gene interactions
+
+        <drugbank_id> <action_type> <uniprot_id> <pmids>
+
+        ***NOTE***
+        drug, protein pairs may have opposing actions present
+        for example INCREASES_EXPRESSION and DECREASES_EXPRESSION
+        these are not yet filtered in this script
+
+        Parameters:
+        -----------
+        source_fp : str
+            The path to the ctd hemical gene interactions file
+
+        output_fp: str
+            The path to the output file
+        """
+        # TODO handle inconsistent actions
+
+        print_section_header(
+            "Parsing CTD file (%s)" %
+            (bcolors.OKGREEN + source_fp + bcolors.ENDC)
+        )
+        start = timer()
+        nb_entries = 0
+        output_fd = SetWriter(output_fp)
+
+        with gzip.open(source_fp, 'rt') as source_fd:
+            prev_chem_id = None
+            for line in source_fd:
+                if line.startswith('#'):
+                    continue
+                nb_entries += 1
+                parts = line.strip().split('\t')
+                chem_id = parts[1]
+                if prev_chem_id is not None and prev_chem_id != chem_id:
+                    output_fd.flush()
+                prev_chem_id = chem_id
+                gene_id = parts[4]
+                organism = parts[6]
+                actions = map(lambda x: sanatize_text(x), parts[9].upper().split('|'))
+                pubmed_refs = ','.join(parts[10].split('|'))
+                if 'Homo sapiens' not in organism:
+                    continue
+                if chem_id in self._chem_id_map and gene_id in self._gene_id_map:
+                    drug_ids = self._chem_id_map[chem_id]
+                    prot_ids = self._gene_id_map[gene_id]
+                    for drug_id in drug_ids:
+                        for prot_id in prot_ids:
+                            for action in actions:
+                                output_fd.write(f'{drug_id}\t{action}\t{prot_id}\t{pubmed_refs}\n')
+
+                if nb_entries % 5 == 0:
+                    speed = nb_entries / (timer() - start)
+                    msg = prc_sym + "Processed (%d) entries.  Speed: (%1.5f) entries/second" % (nb_entries, speed)
+                    print("\r" + msg, end="", flush=True)
+
+        output_fd.close()
+        print(done_sym + "Processed (%d) entries. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
+
+    def parse_ctd(self, source_dp, output_dp):
+        """
+        Parse reactome files
+
+        Parameters
+        ----------
+        source_dp : str
+            The path to the source directory
+        output_dp : str
+            The path to the output directory
+        """
+        print_section_header(
+            "Parsing CDT files (%s)" %
+            (bcolors.OKGREEN + source_dp+'/CTD_*' + bcolors.ENDC)
+        )
+        start = timer()
+        nb_entries = 0
+
+        self._chem_id_map = self.__parse_chemical_id_map(
+            join(source_dp, "CTD_chemicals.tsv.gz")
+        )
+
+        self._gene_id_map = self.__parse_gene_id_map(
+            join(source_dp, "CTD_genes.tsv.gz"),
+            join(source_dp, "swissprot_human_ids.txt.gz")
+        )
+
+        self.__parse_chemical_gene_interactions(
+            join(source_dp, "CTD_chem_gene_ixns.tsv.gz"),
+            join(output_dp, "ctd_drug_protein_interactions.txt")
+        )
+
+        nb_entries += 1
+        print(done_sym + "Processed (%d) files. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
