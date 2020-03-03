@@ -8,7 +8,7 @@ from ..util.extras import *
 from timeit import default_timer as timer
 import xml.etree.ElementTree as ET
 from zipfile import ZipFile
-
+from collections import defaultdict
 
 P_UNIPROT_CODE = re.compile("[OPQ][0-9][A-Z0-9][A-Z0-9][A-Z0-9][0-9]")
 P_DISEASE_CODE = re.compile("MIM:\d+")
@@ -1365,6 +1365,860 @@ class ReactomeParser:
         )
         nb_entries += 1
         print(done_sym + "Processed (%d) files. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
+  
+
+class CTDParser:
+
+    def __init__(self):
+        """
+        Initialize CTD Parser
+        """
+        self._filenames = [
+            "ctd_drug_protein_interactions.txt",
+            "ctd_protein_disease_association.txt",
+            "ctd_drug_disease_association.txt",
+            "ctd_disease_kegg_pathway_association.txt",
+            "ctd_disease_reactome_pathway_association.txt",
+            "ctd_disease_names.txt",
+            "ctd_drug_kegg_pathway_association.txt",
+            "ctd_drug_reactome_pathway_association.txt",
+            "ctd_protein_kegg_pathway_association.txt",
+            "ctd_protein_reactome_pathway_association.txt",
+            "ctd_disease_biological_process.txt",
+            "ctd_disease_cellular_component.txt",
+            "ctd_disease_molecular_function.txt",
+            "ctd_drug_phenotype.txt"
+        ]
+
+    @property
+    def filenames(self):
+        """
+        Get CTD filenames
+        Get Phosphosite filenames
+
+        Returns
+        -------
+        filename : str
+            the name of the CTD output files
+        """
+        return self._filenames
+
+    def __parse_chemical_id_map(self, chemical_id_mapping_fp):
+        """
+        Parse ctd chemical id to drugbank id mapping
+
+        Parameters:
+        -----------
+        chemical_id_mapping_fp : str
+            The path to the ctd chemical id mapping file
+
+        Returns:
+        --------
+        chem_id_map : dict
+            Dictionary mapping chemical ids to a list of drugbank ids
+        """
+        print_section_header(
+            "Parsing CTD file (%s)" %
+            (bcolors.OKGREEN + chemical_id_mapping_fp + bcolors.ENDC)
+        )
+        nb_entries = 0
+        start = timer()
+        chem_id_map = {}
+        with gzip.open(chemical_id_mapping_fp, 'rt') as chem_map_fd:
+            for line in chem_map_fd:
+                if line.startswith('#'):
+                    continue
+                parts = line.strip().split('\t')
+                if len(parts) >= 9:
+                    nb_entries += 1
+                    chem_id = parts[1].replace('MESH:', '')
+                    drug_ids = parts[8].split('|')
+                    if len(drug_ids) > 0:
+                        chem_id_map[chem_id] = drug_ids
+
+                    if nb_entries % 5 == 0:
+                        speed = nb_entries / (timer() - start)
+                        msg = prc_sym + "Processed (%d) entries.  Speed: (%1.5f) entries/second" % (nb_entries, speed)
+                        print("\r" + msg, end="", flush=True)
+
+        print(done_sym + "Processed (%d) entries. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
+        return chem_id_map
+
+    def __parse_gene_id_map(self, gene_id_mapping_fp, swiss_prot_human_fp):
+        """
+        Parse ctd gene id to uniprot protein id mapping
+
+        Parameters:
+        -----------
+        gene_id_mapping_fp : str
+            The path to the ctd gene id mapping file
+
+        Returns:
+        --------
+        gene_id_map : dict
+            Dictionary mapping gene ids to a list of uniprot protein ids
+        """
+        print_section_header(
+            "Parsing CTD file (%s)" %
+            (bcolors.OKGREEN + gene_id_mapping_fp + bcolors.ENDC)
+        )
+        nb_entries = 0
+        start = timer()
+        gene_id_map = {}
+        valid_proteins = set()
+        with gzip.open(swiss_prot_human_fp, 'rt') as human_protein_fd:
+            for line in human_protein_fd:
+                valid_proteins.add(line.strip())
+
+        with gzip.open(gene_id_mapping_fp, 'rt') as gene_map_fd:
+            for line in gene_map_fd:
+                if line.startswith('#'):
+                    continue
+                parts = line.strip().split('\t')
+                if len(parts) >= 8:
+                    nb_entries += 1
+                    gene_id = parts[2]
+                    prot_ids = parts[7].split('|')
+                    valid_prot_ids = []
+                    for prot_id in prot_ids:
+                        if prot_id in valid_proteins:
+                            valid_prot_ids.append(prot_id)
+                    if len(valid_prot_ids) > 0:
+                        gene_id_map[gene_id] = valid_prot_ids
+
+                    if nb_entries % 5 == 0:
+                        speed = nb_entries / (timer() - start)
+                        msg = prc_sym + "Processed (%d) entries.  Speed: (%1.5f) entries/second" % (nb_entries, speed)
+                        print("\r" + msg, end="", flush=True)
+
+        print(done_sym + "Processed (%d) entries. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
+        return gene_id_map
+
+    def __parse_chemical_gene_interactions(self, source_fp, output_fp):
+        """
+        Parse ctd chemical gene interactions
+
+        <drugbank_id> <action_type> <uniprot_id> <pmids>
+
+        ***NOTE***
+        drug, protein pairs may have incompatible actions present
+        for example INCREASES_EXPRESSION and DECREASES_EXPRESSION
+        these are excluded from the output
+
+        Parameters:
+        -----------
+        source_fp : str
+            The path to the ctd chemical gene interactions file
+
+        output_fp: str
+            The path to the output file
+        """
+        print_section_header(
+            "Parsing CTD file (%s)" %
+            (bcolors.OKGREEN + source_fp + bcolors.ENDC)
+        )
+        start = timer()
+        nb_entries = 0
+        nb_inconsistent = 0
+        output_fd = SetWriter(output_fp)
+
+        with gzip.open(source_fp, 'rt') as source_fd:
+            prev_chem_id = None
+            prev_gene_id = None
+            actions_map = defaultdict(dict)
+            for line in source_fd:
+                if line.startswith('#'):
+                    continue
+                nb_entries += 1
+                parts = line.strip().split('\t')
+                chem_id = parts[1]
+                gene_id = parts[4]
+
+                if (prev_chem_id is not None and prev_chem_id != chem_id) or\
+                        (prev_gene_id is not None and prev_gene_id != gene_id):
+                    # Remove incompatible actions
+                    for process, effects in actions_map.items():
+                        if 'AFFECTS' in effects:
+                            pubmed_refs = ','.join(effects['AFFECTS'])
+                            drug_ids = self._chem_id_map[prev_chem_id]
+                            prot_ids = self._gene_id_map[prev_gene_id]
+                            for drug_id in drug_ids:
+                                for prot_id in prot_ids:
+                                    output_fd.write(f'{drug_id}\tAFFECTS_{process}\t{prot_id}\t{pubmed_refs}\n')
+                        if 'INCREASES' in effects and 'DECREASES' not in effects:
+                            pubmed_refs = ','.join(effects['INCREASES'])
+                            drug_ids = self._chem_id_map[prev_chem_id]
+                            prot_ids = self._gene_id_map[prev_gene_id]
+                            for drug_id in drug_ids:
+                                for prot_id in prot_ids:
+                                    output_fd.write(f'{drug_id}\tINCREASES_{process}\t{prot_id}\t{pubmed_refs}\n')
+                        elif 'DECREASES' in effects and 'INCREASES' not in effects:
+                            pubmed_refs = ','.join(effects['DECREASES'])
+                            drug_ids = self._chem_id_map[prev_chem_id]
+                            prot_ids = self._gene_id_map[prev_gene_id]
+                            for drug_id in drug_ids:
+                                for prot_id in prot_ids:
+                                    output_fd.write(f'{drug_id}\tDECREASES_{process}\t{prot_id}\t{pubmed_refs}\n')
+                        elif 'INCREASES' in effects and 'DECREASES'in effects:
+                            nb_inconsistent += 1
+
+                    output_fd.flush()
+                    actions_map = defaultdict(dict)
+
+                prev_chem_id = chem_id
+                prev_gene_id = gene_id
+                organism = parts[6]
+                actions = parts[9].upper().split('|')
+                pubmed_refs = ','.join(parts[10].split('|'))
+                if 'Homo sapiens' not in organism:
+                    continue
+                if chem_id in self._chem_id_map and gene_id in self._gene_id_map:
+                    for action in actions:
+                        effect, process = action.split('^')
+                        process = sanatize_text(process)
+                        if effect not in actions_map[process]:
+                            actions_map[process][effect] = set()
+                        actions_map[process][effect].update(parts[10].split('|'))
+
+                if nb_entries % 5 == 0:
+                    speed = nb_entries / (timer() - start)
+                    msg = prc_sym + "Processed (%d) entries.  Speed: (%1.5f) entries/second" % (nb_entries, speed)
+                    print("\r" + msg, end="", flush=True)
+
+        output_fd.close()
+        print(done_sym + "Processed (%d) %d inconsistent actions found entries. Took %1.2f Seconds." % (nb_entries, nb_inconsistent, timer() - start), flush=True)
+
+    def __parse_gene_disease(self, source_fp, output_fp, disease_name_map):
+        """
+        Parse ctd gene disease associations
+
+        <uniprot_id> ASSOCIATED_DISEASE <omim_id> <pmids>
+
+        Parameters:
+        -----------
+        source_fp : str
+            The path to the ctd gene disease association file
+
+        output_fp: str
+            The path to the output file
+
+        disease_name_map : dict
+            Dictionary mapping omim disease ids to disease name
+
+        Returns:
+        --------
+        disease_name_map : dict
+            Dictionary mapping omim disease ids to disease name
+        """
+        print_section_header(
+            "Parsing CTD file (%s)" %
+            (bcolors.OKGREEN + source_fp + bcolors.ENDC)
+        )
+        nb_entries = 0
+        start = timer()
+        output_fd = SetWriter(output_fp)
+
+        with gzip.open(source_fp, 'rt') as source_fd:
+            for line in source_fd:
+                if line.startswith('#'):
+                    continue
+                parts = line.split('\t')
+                # Check disease has omim id
+                # disease has direct evidence
+                # gene maps to protein
+                if len(parts[4].strip()) > 0 and parts[1] in self._gene_id_map:
+                    if 'OMIM' in parts[3]:
+                        disease_ids = map(lambda x: x[5:], filter(lambda x: x.startswith('OMIM'), parts[3].split('|')))
+                    elif len(parts[7].strip()) > 0:
+                        disease_ids = parts[7].split('|')
+                    else:
+                        continue
+
+                    nb_entries += 1
+                    disease_name = sanatize_text(parts[2])
+                    pubmed_refs = ''
+                    has_refs = False
+                    if len(parts) >= 9 and len(parts[8].strip()) > 0:
+                        pubmed_refs = ','.join(parts[8].strip().split('|'))
+                        has_refs = True
+
+                    for disease_id in disease_ids:
+                        disease_name_map[disease_id] = disease_name
+                        for prot_id in self._gene_id_map[parts[1]]:
+                            if has_refs:
+                                output_fd.write(f'{prot_id}\tASSOCIATED_DISEASE\t{disease_id}\t{pubmed_refs}\n')
+                            else:
+                                output_fd.write(f'{prot_id}\tASSOCIATED_DISEASE\t{disease_id}\n')
+                    if nb_entries % 5 == 0:
+                        speed = nb_entries / (timer() - start)
+                        msg = prc_sym + "Processed (%d) entries.  Speed: (%1.5f) entries/second" % (nb_entries, speed)
+                        print("\r" + msg, end="", flush=True)
+
+        output_fd.close()
+        print(done_sym + "Processed (%d) entries. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
+        return disease_name_map
+
+    def __parse_chemical_disease(self, source_fp, output_fp, disease_name_map):
+        """
+        Parse ctd chemical disease associations
+
+        <drugbank_id> ASSOCIATED_DISEASE <omim_id> <pmids>
+
+        Parameters:
+        -----------
+        source_fp : str
+            The path to the ctd chemical disease association file
+
+        output_fp: str
+            The path to the output file
+
+        disease_name_map : dict
+            Dictionary mapping omim disease ids to disease name
+
+        Returns:
+        --------
+        disease_name_map : dict
+            Dictionary mapping omim disease ids to disease name
+        """
+        output_fd = SetWriter(output_fp)
+        print_section_header(
+            "Parsing CTD file (%s)" %
+            (bcolors.OKGREEN + source_fp + bcolors.ENDC)
+        )
+        start = timer()
+        nb_entries = 0
+
+        with gzip.open(source_fp, 'rt') as source_fd:
+            for line in source_fd:
+                if line.startswith('#'):
+                    continue
+                parts = line.split('\t')
+
+                # Check disese maps to OMIM
+                # there is direct evidence
+                # the chemical maps to a drug
+                if len(parts[5].strip()) > 0 and 'OMIM' in parts[4] and parts[1].strip() in self._chem_id_map:
+                    if 'OMIM' in parts[4]:
+                        disease_ids = map(lambda x: x[5:], filter(lambda x: x.startswith('OMIM'), parts[3].split('|')))
+                    elif len(parts[8].strip()) > 0:
+                        disease_ids = parts[8].split('|')
+                    else:
+                        continue
+                    nb_entries += 1
+                    disease_ids = map(lambda x: x[5:], filter(lambda x: x.startswith('OMIM'), parts[4].split('|')))
+                    disease_ids = parts[8].split('|')
+                    disease_name = sanatize_text(parts[3])
+
+                    pubmed_refs = ''
+                    has_refs = False
+                    if len(parts) >= 10 and len(parts[9].strip()) > 0:
+                        pubmed_refs = ','.join(parts[9].strip().split('|'))
+                        has_refs = True
+
+                    for disease_id in disease_ids:
+                        disease_name_map[disease_id] = disease_name
+                        for drug_id in self._chem_id_map[parts[1].strip()]:
+                            if has_refs:
+                                output_fd.write(f'{drug_id}\tASSOCIATED_DISEASE\t{disease_id}\t{pubmed_refs}\n')
+                            else:
+                                output_fd.write(f'{drug_id}\tASSOCIATED_DISEASE\t{disease_id}\n')
+
+                    if nb_entries % 5 == 0:
+                        speed = nb_entries / (timer() - start)
+                        msg = prc_sym + "Processed (%d) entries.  Speed: (%1.5f) entries/second" % (nb_entries, speed)
+                        print("\r" + msg, end="", flush=True)
+
+        output_fd.close()
+        print(done_sym + "Processed (%d) entries. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
+        return disease_name_map
+
+    def __parse_disease_pathway(self, source_fp, kegg_fp, reactome_fp, disease_name_map):
+        """
+        Parse ctd chemical disease associations
+
+        <disease_id> ASSOCIATED_PATHWAY <kegg_id>
+
+        <disease_id> ASSOCIATED_PATHWAY <reactome_id>
+
+        Parameters:
+        -----------
+        source_fp : str
+            The path to the ctd chemical disease association file
+
+        kegg_fp: str
+            The path to output kegg pathway associations
+
+        reactome_fp: str
+            The path to output reactome pathway associations
+
+        disease_name_map : dict
+            Dictionary mapping omim disease ids to disease name
+
+        Returns:
+        --------
+        disease_name_map : dict
+            Dictionary mapping omim disease ids to disease name
+        """
+        kegg_fd = SetWriter(kegg_fp)
+        reactome_fd = SetWriter(reactome_fp)
+        print_section_header(
+            "Parsing CTD file (%s)" %
+            (bcolors.OKGREEN + source_fp + bcolors.ENDC)
+        )
+        start = timer()
+        nb_entries = 0
+
+        with gzip.open(source_fp, 'rt') as source_fd:
+            for line in source_fd:
+                if line.startswith('#'):
+                    continue
+                parts = line.split('\t')
+
+                disease_name = sanatize_text(parts[0])
+                disease_id = parts[1]
+                pathway = parts[3]
+                if disease_id.startswith('OMIM'):
+                    nb_entries += 1
+                    disease_id = disease_id[5:]
+                    disease_name_map[disease_id] = disease_name
+
+                    if pathway.startswith('KEGG'):
+                        pathway = pathway[5:]
+                        kegg_fd.write(f'{disease_id}\tASSOCIATED_PATHWAY\t{pathway}\n')
+                    elif pathway.startswith('REACT'):
+                        pathway = pathway[6:]
+                        reactome_fd.write(f'{disease_id}\tASSOCIATED_PATHWAY\t{pathway}\n')
+
+                    if nb_entries % 5 == 0:
+                        speed = nb_entries / (timer() - start)
+                        msg = prc_sym + "Processed (%d) entries.  Speed: (%1.5f) entries/second" % (nb_entries, speed)
+                        print("\r" + msg, end="", flush=True)
+
+        kegg_fd.close()
+        reactome_fd.close()
+
+        print(done_sym + "Processed (%d) entries. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
+        return disease_name_map
+
+    def __parse_chemical_pathway(self, source_fp, kegg_fp, reactome_fp):
+        """
+        Parse ctd chemical pathway associations
+
+        <drugbank_id> ASSOCIATED_PATHWAY <kegg_id>
+
+        <drugbank_id> ASSOCIATED_PATHWAY <reactome_id>
+
+        Parameters:
+        -----------
+        source_fp : str
+            The path to the ctd chemical disease association file
+
+        kegg_fp: str
+            The path to output kegg pathway associations
+
+        reactome_fp: str
+            The path to output reactome pathway associations
+        """
+        kegg_fd = SetWriter(kegg_fp)
+        reactome_fd = SetWriter(reactome_fp)
+        print_section_header(
+            "Parsing CTD file (%s)" %
+            (bcolors.OKGREEN + source_fp + bcolors.ENDC)
+        )
+        start = timer()
+        nb_entries = 0
+
+        with gzip.open(source_fp, 'rt') as source_fd:
+            for line in source_fd:
+                if line.startswith('#'):
+                    continue
+                parts = line.split('\t')
+
+                chem_id = parts[1]
+                pathway = parts[4]
+                if chem_id in self._chem_id_map:
+                    nb_entries += 1
+
+                    for drug_id in self._chem_id_map[chem_id]:
+                        if pathway.startswith('KEGG'):
+                            pathway = pathway[5:]
+                            kegg_fd.write(f'{drug_id}\tASSOCIATED_PATHWAY\t{pathway}\n')
+                        elif pathway.startswith('REACT'):
+                            pathway = pathway[6:]
+                            reactome_fd.write(f'{drug_id}\tASSOCIATED_PATHWAY\t{pathway}\n')
+
+                    if nb_entries % 5 == 0:
+                        speed = nb_entries / (timer() - start)
+                        msg = prc_sym + "Processed (%d) entries.  Speed: (%1.5f) entries/second" % (nb_entries, speed)
+                        print("\r" + msg, end="", flush=True)
+
+        kegg_fd.close()
+        reactome_fd.close()
+
+        print(done_sym + "Processed (%d) entries. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
+
+    def __parse_gene_pathway(self, source_fp, kegg_fp, reactome_fp):
+        """
+        Parse ctd gene pathway associations
+
+        <uniprot_id> ASSOCIATED_PATHWAY <kegg_id>
+
+        <uniprot_id> ASSOCIATED_PATHWAY <reactome_id>
+
+        Parameters:
+        -----------
+        source_fp : str
+            The path to the ctd chemical disease association file
+
+        kegg_fp: str
+            The path to output kegg pathway associations
+
+        reactome_fp: str
+            The path to output reactome pathway associations
+        """
+        kegg_fd = SetWriter(kegg_fp)
+        reactome_fd = SetWriter(reactome_fp)
+        print_section_header(
+            "Parsing CTD file (%s)" %
+            (bcolors.OKGREEN + source_fp + bcolors.ENDC)
+        )
+        start = timer()
+        nb_entries = 0
+
+        with gzip.open(source_fp, 'rt') as source_fd:
+            for line in source_fd:
+                if line.startswith('#'):
+                    continue
+                parts = line.split('\t')
+
+                gene_id = parts[1]
+                pathway = parts[3].strip()
+                if gene_id in self._gene_id_map:
+                    nb_entries += 1
+
+                    for prot_id in self._gene_id_map[gene_id]:
+                        if pathway.startswith('KEGG'):
+                            pathway = pathway[5:]
+                            kegg_fd.write(f'{prot_id}\tASSOCIATED_PATHWAY\t{pathway}\n')
+                        elif pathway.startswith('REACT'):
+                            pathway = pathway[6:]
+                            reactome_fd.write(f'{prot_id}\tASSOCIATED_PATHWAY\t{pathway}\n')
+
+                    if nb_entries % 5 == 0:
+                        speed = nb_entries / (timer() - start)
+                        msg = prc_sym + "Processed (%d) entries.  Speed: (%1.5f) entries/second" % (nb_entries, speed)
+                        print("\r" + msg, end="", flush=True)
+
+        kegg_fd.close()
+        reactome_fd.close()
+
+        print(done_sym + "Processed (%d) entries. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
+
+    def __parse_disease_bio_process(self, source_fp, output_fp, disease_name_map):
+        """
+        Parse ctd disease biological process associations
+
+        <disease_id> BIOLOGICAL_PROCESS <go_id>
+
+        Parameters:
+        -----------
+        source_fp : str
+            The path to the ctd chemical disease association file
+
+        output_fp: str
+            The path to output file
+        """
+        output_fd = SetWriter(output_fp)
+        print_section_header(
+            "Parsing CTD file (%s)" %
+            (bcolors.OKGREEN + source_fp + bcolors.ENDC)
+        )
+        start = timer()
+        nb_entries = 0
+
+        with gzip.open(source_fp, 'rt') as source_fd:
+            for line in source_fd:
+                if line.startswith('#'):
+                    continue
+                parts = line.split('\t')
+
+                go_id = parts[1]
+                disease_id = parts[3]
+                if disease_id.startswith('OMIM'):
+                    nb_entries += 1
+                    disease_id = disease_id[5:]
+                    disease_name_map[disease_id] = sanatize_text(parts[2])
+                    output_fd.write(f'{disease_id}\tBIOLOGICAL_PROCESS\t{go_id}\n')
+
+                    if nb_entries % 5 == 0:
+                        speed = nb_entries / (timer() - start)
+                        msg = prc_sym + "Processed (%d) entries.  Speed: (%1.5f) entries/second" % (nb_entries, speed)
+                        print("\r" + msg, end="", flush=True)
+
+        output_fd.close()
+
+        print(done_sym + "Processed (%d) entries. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
+        return disease_name_map
+
+    def __parse_disease_cellular_comp(self, source_fp, output_fp, disease_name_map):
+        """
+        Parse ctd disease biological process associations
+
+        <disease_id> CELLULAR_COMPONENT <go_id>
+
+        Parameters:
+        -----------
+        source_fp : str
+            The path to the ctd chemical disease association file
+
+        output_fp: str
+            The path to output file
+        """
+        output_fd = SetWriter(output_fp)
+        print_section_header(
+            "Parsing CTD file (%s)" %
+            (bcolors.OKGREEN + source_fp + bcolors.ENDC)
+        )
+        start = timer()
+        nb_entries = 0
+
+        with gzip.open(source_fp, 'rt') as source_fd:
+            for line in source_fd:
+                if line.startswith('#'):
+                    continue
+                parts = line.split('\t')
+
+                go_id = parts[1]
+                disease_id = parts[3]
+                if disease_id.startswith('OMIM'):
+                    nb_entries += 1
+                    disease_id = disease_id[5:]
+                    disease_name_map[disease_id] = sanatize_text(parts[2])
+                    output_fd.write(f'{disease_id}\tCELLULAR_COMPONENT\t{go_id}\n')
+
+                    if nb_entries % 5 == 0:
+                        speed = nb_entries / (timer() - start)
+                        msg = prc_sym + "Processed (%d) entries.  Speed: (%1.5f) entries/second" % (nb_entries, speed)
+                        print("\r" + msg, end="", flush=True)
+
+        output_fd.close()
+
+        print(done_sym + "Processed (%d) entries. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
+        return disease_name_map
+
+    def __parse_disease_molecular_func(self, source_fp, output_fp, disease_name_map):
+        """
+        Parse ctd disease biological process associations
+
+        <disease_id> MOLECULAR_FUNCTION <go_id>
+
+        Parameters:
+        -----------
+        source_fp : str
+            The path to the ctd chemical disease association file
+
+        output_fp: str
+            The path to output file
+        """
+        output_fd = SetWriter(output_fp)
+        print_section_header(
+            "Parsing CTD file (%s)" %
+            (bcolors.OKGREEN + source_fp + bcolors.ENDC)
+        )
+        start = timer()
+        nb_entries = 0
+
+        with gzip.open(source_fp, 'rt') as source_fd:
+            for line in source_fd:
+                if line.startswith('#'):
+                    continue
+                parts = line.split('\t')
+
+                go_id = parts[1]
+                disease_id = parts[3]
+                if disease_id.startswith('OMIM'):
+                    nb_entries += 1
+                    disease_id = disease_id[5:]
+                    disease_name_map[disease_id] = sanatize_text(parts[2])
+                    output_fd.write(f'{disease_id}\tMOLECULAR_FUNCTION\t{go_id}\n')
+
+                    if nb_entries % 5 == 0:
+                        speed = nb_entries / (timer() - start)
+                        msg = prc_sym + "Processed (%d) entries.  Speed: (%1.5f) entries/second" % (nb_entries, speed)
+                        print("\r" + msg, end="", flush=True)
+
+        output_fd.close()
+
+        print(done_sym + "Processed (%d) entries. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
+        return disease_name_map
+
+    def __parse_chemical_phenotype(self, source_fp, output_fp):
+        """
+        Parse ctd chemical disease associations
+
+        <drugbank_id> tDRUG_PHENOTYPE <go_id> <action> <pmids>
+
+        Parameters:
+        -----------
+        source_fp : str
+            The path to the ctd chemical disease association file
+
+        output_fp: str
+            The path to the output file
+
+        disease_name_map : dict
+            Dictionary mapping omim disease ids to disease name
+
+        Returns:
+        --------
+        disease_name_map : dict
+            Dictionary mapping omim disease ids to disease name
+        """
+        output_fd = SetWriter(output_fp)
+        print_section_header(
+            "Parsing CTD file (%s)" %
+            (bcolors.OKGREEN + source_fp + bcolors.ENDC)
+        )
+        start = timer()
+        nb_entries = 0
+
+        with gzip.open(source_fp, 'rt') as source_fd:
+            for line in source_fd:
+                if line.startswith('#'):
+                    continue
+                parts = line.split('\t')
+                chem_id = parts[1]
+                go_id = parts[4]
+                organism = parts[7]
+
+                pubmed_refs = ''
+                has_refs = False
+                if len(parts) >= 13 and len(parts[12].strip()) > 0:
+                    pubmed_refs = ','.join(parts[12].strip().split('|'))
+                    has_refs = True
+
+                if chem_id in self._chem_id_map and organism == '9606':
+                    nb_entries += 1
+                    actions = map(lambda x: sanatize_text(x), parts[9].upper().split('|'))
+                    for prot_id in self._chem_id_map[chem_id]:
+                        for action in actions:
+                            if has_refs:
+                                output_fd.write(f'{prot_id}\tDRUG_PHENOTYPE\t{go_id}\t{action}\t{pubmed_refs}\n')
+                            else:
+                                output_fd.write(f'{prot_id}\tDRUG_PHENOTYPE\t{go_id}\t{action}\n')
+
+                    if nb_entries % 5 == 0:
+                        speed = nb_entries / (timer() - start)
+                        msg = prc_sym + "Processed (%d) entries.  Speed: (%1.5f) entries/second" % (nb_entries, speed)
+                        print("\r" + msg, end="", flush=True)
+
+        output_fd.close()
+        print(done_sym + "Processed (%d) entries. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
+
+    def parse_ctd(self, source_dp, output_dp):
+        """
+        Parse ctd files
+
+        Parameters
+        ----------
+        source_dp : str
+            The path to the source directory
+        output_dp : str
+            The path to the output directory
+        """
+
+        print_section_header(
+            "Parsing CDT files (%s)" %
+            (bcolors.OKGREEN + source_dp+'/CTD_*' + bcolors.ENDC)
+        )
+        start = timer()
+        nb_entries = 0
+
+        self._chem_id_map = self.__parse_chemical_id_map(
+            join(source_dp, "CTD_chemicals.tsv.gz")
+        )
+        nb_entries += 1
+
+        self._gene_id_map = self.__parse_gene_id_map(
+            join(source_dp, "CTD_genes.tsv.gz"),
+            join(source_dp, "swissprot_human_ids.txt.gz")
+        )
+        nb_entries += 1
+
+        self.__parse_chemical_gene_interactions(
+            join(source_dp, "CTD_chem_gene_ixns.tsv.gz"),
+            join(output_dp, "ctd_drug_protein_interactions.txt")
+        )
+        nb_entries += 1
+
+        disease_name_map = self.__parse_gene_disease(
+            join(source_dp, "CTD_genes_diseases.tsv.gz"),
+            join(output_dp, "ctd_protein_disease_association.txt"),
+            {}
+        )
+        nb_entries += 1
+        disease_name_map = self.__parse_chemical_disease(
+            join(source_dp, "CTD_chemicals_diseases.tsv.gz"),
+            join(output_dp, "ctd_drug_disease_association.txt"),
+            disease_name_map
+        )
+        nb_entries += 1
+
+        disease_name_map = self.__parse_disease_pathway(
+            join(source_dp, "CTD_diseases_pathways.tsv.gz"),
+            join(output_dp, "ctd_disease_kegg_pathway_association.txt"),
+            join(output_dp, "ctd_disease_reactome_pathway_association.txt"),
+            disease_name_map
+        )
+        nb_entries += 1
+
+        self.__parse_chemical_pathway(
+            join(source_dp, "CTD_chem_pathways_enriched.tsv.gz"),
+            join(output_dp, "ctd_drug_kegg_pathway_association.txt"),
+            join(output_dp, "ctd_drug_reactome_pathway_association.txt")
+        )
+        nb_entries += 1
+
+        self.__parse_gene_pathway(
+            join(source_dp, "CTD_genes_pathways.tsv.gz"),
+            join(output_dp, "ctd_protein_kegg_pathway_association.txt"),
+            join(output_dp, "ctd_protein_reactome_pathway_association.txt")
+        )
+        nb_entries += 1
+
+        disease_name_map = self.__parse_disease_bio_process(
+            join(source_dp, "CTD_disease_biological_process.tsv.gz"),
+            join(output_dp, "ctd_disease_biological_process.txt"),
+            disease_name_map
+        )
+        nb_entries += 1
+
+        disease_name_map = self.__parse_disease_cellular_comp(
+            join(source_dp, "CTD_disease_cellular_component.tsv.gz"),
+            join(output_dp, "ctd_disease_cellular_component.txt"),
+            disease_name_map
+        )
+        nb_entries += 1
+
+        disease_name_map = self.__parse_disease_molecular_func(
+            join(source_dp, "CTD_disease_molecular_function.tsv.gz"),
+            join(output_dp, "ctd_disease_molecular_function.txt"),
+            disease_name_map
+        )
+        nb_entries += 1
+
+        self.__parse_chemical_phenotype(
+            join(source_dp, "CTD_chemical_phenotype.tsv.gz"),
+            join(output_dp, "ctd_drug_phenotype.txt")
+        )
+        nb_entries += 1
+
+        # Write OMIM_ID \ Disease name mapping
+        with open(join(output_dp, 'ctd_disease_names.txt'), 'w') as disease_fd:
+            for disease_id, disease_name in disease_name_map.items():
+                disease_fd.write(f'{disease_id}\tDISEASE_NAME\t{disease_name}\n')
+
+        print(done_sym + "Processed (%d) files. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
 
 
 class PhosphositeParser():
@@ -1388,6 +2242,9 @@ class PhosphositeParser():
             the name of the Phosphosite output files
         """
         return self._filenames
+
+    
+        
 
     def __parse_sites(self, source_fp, output_fp):
         """
@@ -1439,7 +2296,7 @@ class PhosphositeParser():
 
         Parameters:
         -----------
-        source_fp : str
+        source_fp : str    
             The path to the phosphosite kinase_substrate file
 
         output_fp : str
