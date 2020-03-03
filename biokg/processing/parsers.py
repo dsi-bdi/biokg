@@ -663,7 +663,7 @@ class DrugBankParser:
             "mesh" : "db_mesh.txt",
             "classification" : "db_classification.txt",
             "atc" : "db_atc.txt",
-            "group": "db_group.txt",
+            "stage": "db_product_stage.txt",
             'mechanism' : "db_mechanism_of_action.txt"
         }
         self._ns = {'db':'http://www.drugbank.ca'}
@@ -830,7 +830,7 @@ class DrugBankParser:
         #
         #Parse drug metadata
         meta_fd = output_writers['meta']
-        group_fd = output_writers['group']
+        stage_fd = output_writers['stage']
         mech_fd = output_writers['mechanism']
         drug_id_elem = drug_element.find('./db:drugbank-id[@primary="true"]', self._ns)
         
@@ -853,7 +853,7 @@ class DrugBankParser:
         for group in drug_element.findall('./db:groups/db:group', self._ns):
             group_text = sanatize_text(group.text)
             if group_text is not None and group_text != '':
-                group_fd.write(f'{drug_id}\tGROUP\t{group_text}\n')
+                stage_fd.write(f'{drug_id}\tPRODUCT_STAGE\t{group_text}\n')
 
         for pmid in drug_element.findall('./db:general-references/db:articles/db:article/db:pubmed-id', self._ns):
             pmid_text = sanatize_text(pmid.text)
