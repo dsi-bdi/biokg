@@ -154,3 +154,21 @@ def download_phosphosite_data(sources_dp, srcs_cp):
     download_file_md5_check(srcs_cp["phosphositeplus"]["kinase_substrate"], kinase_substrate_fp)
 
     print_bold_line()
+
+
+def download_intact_data(sources_dp, srcs_cp):
+    """ Download intact database files
+    Parameters
+    ----------
+    sources_dp : str
+        the sources directory path
+    srcs_cp : RawConfigParser
+        source urls config parser
+    """
+    print_section_header("Downloading Intact data files")
+
+    intact_zip_fp = join(sources_dp, "intact.zip")
+
+    download_file_md5_check(srcs_cp["intact"]["intact_zip"], intact_zip_fp)
+
+    print_bold_line()

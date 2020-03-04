@@ -2360,3 +2360,90 @@ class PhosphositeParser():
         )
 
         print(done_sym + "Processed (%d) entries. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
+
+
+class IntactParser():
+
+    def __init__(self):
+        """
+        Initialize Intact Parser
+        """
+        self._filenames = ['intact_ppi.txt']
+
+    @property
+    def filenames(self):
+        """
+        Get Intact filenames
+
+        Returns
+        -------
+        filename : str
+            the name of the Intact output files
+        """
+        return self._filenames
+
+    def parse_intact(self, source_dp, output_dp, uniprot_fp):
+        """
+        Parse Intact files
+
+        Parameters
+        ----------
+        source_dp : str
+            The path to the source directory
+        output_dp : str
+            The path to the output directory
+        uniprot_fp : str
+            The path to the uniprot_ppi.txt output file
+        """
+        print_section_header(
+            "Parsing Intact file (%s)" %
+            (bcolors.OKGREEN + source_dp + '/intact.zip/intact.txt' + bcolors.ENDC)
+        )
+        start = timer()
+
+        nb_entries = 0
+        # Read set of protein protein interactions extracted from uniprot
+        interaction_set = set()
+        with open(uniprot_fp, 'r') as uniprot_fd:
+            for line in uniprot_fd:
+                (sub, _, obj) = line.strip().split('\t')
+                interaction_set.add((sub, obj))
+
+        source_fp = join(source_dp, 'intact.zip')
+        output_fd = SetWriter(join(output_dp, 'intact_ppi.txt'))
+        intact_ppis = defaultdict(set)
+        with ZipFile(source_fp, 'r') as intact_zip:
+            with intact_zip.open('intact.txt', 'r', force_zip64=True) as intact_fd:
+                # Skip Header
+                next(intact_fd)
+                for line in intact_fd:
+                    nb_entries += 1
+                    parts = line.decode().split('\t')
+                    source = parts[0]
+                    target = parts[1]
+                    pubs = parts[8]
+
+                    # Filter non uniprot interactions
+                    if source.startswith('uniprot') and target.startswith('uniprot'):
+                        source = source.split(':')[1]
+                        target = target.split(':')[1]
+                        pubs = map(lambda x: x.split(':')[1], filter(lambda x: x.startswith('pubmed'), pubs.split('|')))
+                        # Check interaction exists in uniprot
+                        if (source, target) in interaction_set:
+                            # The same interaction can be repeated with different references
+                            # Collect the complete set of references for each interaction
+                            intact_ppis[(source, target)].update(pubs)
+
+                    if nb_entries % 5 == 0:
+                        speed = nb_entries / (timer() - start)
+                        msg = prc_sym + "Processed (%d) entries.  Speed: (%1.5f) entries/second" % (nb_entries, speed)
+                        print("\r" + msg, end="", flush=True)
+
+        for (source, target), references in intact_ppis.items():
+            references = ','.join(filter(lambda x: not x.startswith('unassigned'), references))
+            # Only output interactions with references to Pubmed
+            if len(references) > 0:
+                output_fd.write(f'{source}\tINTERACTS_WITH\t{target}\t{references}\n')
+
+        output_fd.close()
+        print(done_sym + "Processed (%d) entries. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)

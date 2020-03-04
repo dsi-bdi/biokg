@@ -54,6 +54,9 @@ def main():
     # download phosphosite source data
     download_phosphosite_data(sources_dp=sources_dp, srcs_cp=sources_urls)
 
+    # download intact source data
+    download_intact_data(sources_dp=sources_dp, srcs_cp=sources_urls)
+
     # ----------------------------------------------------------------------
     # processing uniprot entries file
     uniprot_parser = UniProtTxtParser()
@@ -155,6 +158,18 @@ def main():
     else:
         print(inf_sym + "PhosphoSitePlus processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
 
+    # ----------------------------------------------------------------------
+    # processing Intact zip file
+    intact_parser = IntactParser()
+    intact_fps = [join(preprocessed_dp, fn) for fn in intact_parser.filenames]
+    invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in intact_fps]))
+
+    if invalid_md5:
+        intact_parser.parse_intact(sources_dp, preprocessed_dp, join(output_dp, 'uniprot_ppi.txt'))
+        for ofp in intact_fps:
+            export_file_md5(ofp)
+    else:
+        print(inf_sym + "Intact processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
 
 if __name__ == '__main__':
     main()
