@@ -1376,7 +1376,6 @@ class CTDParser:
         self._filenames = [
             "ctd_drug_protein_interactions.txt",
             "ctd_protein_disease_association.txt",
-            "ctd_drug_disease_association.txt",
             "ctd_disease_kegg_pathway_association.txt",
             "ctd_disease_reactome_pathway_association.txt",
             "ctd_disease_names.txt",
@@ -2155,12 +2154,6 @@ class CTDParser:
             join(source_dp, "CTD_genes_diseases.tsv.gz"),
             join(output_dp, "ctd_protein_disease_association.txt"),
             {}
-        )
-        nb_entries += 1
-        disease_name_map = self.__parse_chemical_disease(
-            join(source_dp, "CTD_chemicals_diseases.tsv.gz"),
-            join(output_dp, "ctd_drug_disease_association.txt"),
-            disease_name_map
         )
         nb_entries += 1
 
