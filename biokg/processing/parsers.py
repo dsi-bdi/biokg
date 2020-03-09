@@ -763,7 +763,7 @@ class DrugBankParser:
         desc = interaction_element.find('./db:description', self._ns)
         desc_text = None
         if desc.text is not None:
-            desc_text = desc.text.strip().replace('\t', ' ')
+            desc_text = desc.text.strip().replace('\t', ' ').replace('\n', ' ')
 
         if dest_text is not None and dest_text != '':
             # Output side effect descritpion if available
