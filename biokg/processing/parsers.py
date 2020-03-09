@@ -756,9 +756,21 @@ class DrugBankParser:
         dest = interaction_element.find('./db:drugbank-id', self._ns)
         if dest is None:
             raise Exception('Interaction does not contain destination')
+        
         dest_text = sanatize_text(dest.text)
+
+        # Add description of interaction to output
+        desc = interaction_element.find('./db:description', self._ns)
+        desc_text = None
+        if desc.text is not None:
+            desc_text = desc.text.strip().replace('\t', ' ').replace('\n', ' ')
+
         if dest_text is not None and dest_text != '':
-            output.write(f'{drug_id}\tDRUG_INTERACTION\t{dest_text}\n')
+            # Output side effect descritpion if available
+            if desc_text is not None and desc_text != '':
+                output.write(f'{drug_id}\tDRUG_INTERACTION\t{dest_text}\t{desc_text}\n')
+            else:
+                output.write(f'{drug_id}\tDRUG_INTERACTION\t{dest_text}\n')
 
     def __parse_atc_code(self, code_element, drug_id, output):
         """
