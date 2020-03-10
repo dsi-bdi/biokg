@@ -2452,3 +2452,145 @@ class IntactParser():
 
         output_fd.close()
         print(done_sym + "Processed (%d) entries. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
+
+
+class SiderParser():
+    def __init__(self):
+        """
+        Initialize Sider Parser
+        """
+        self._filenames = [
+            'sider_indications.txt',
+            'sider_indications_meta.txt',
+            'sider_effects.txt',
+            'sider_effects_meta.txt'
+        ]
+
+    @property
+    def filenames(self):
+        """
+        Get Sider filenames
+
+        Returns
+        -------
+        filename : str
+            the names of the Sider output files
+        """
+        return self._filenames
+
+    def __parse_indications(self, source_fp, indications_fp, indications_meta_fp):
+        """
+        Parse the Sider indications file.
+
+        Indications are output in the format
+
+        <sider_id> INDICATION <indication_id>
+
+        Indication names are output in the format
+
+        <indication_id> NAME <indication_name>
+
+        Parameters:
+        -----------
+        source_fp : str
+            The path to the Sider indications file
+
+        indications_fp : str
+            The path to the indications output file
+
+        indications_meta_fp : str
+            The path to the indications meta output file
+        """
+        indications_fd = SetWriter(indications_fp)
+        indications_meta_fd = SetWriter(indications_meta_fp)
+
+        with gzip.open(source_fp, 'rt') as source_fd:
+            for line in source_fd:
+                parts = line.strip().split('\t')
+                sid = parts[0]
+                if parts[4] != 'PT':
+                    continue
+
+                indication = parts[5]
+                indication_name = sanatize_text(parts[6])
+                indications_fd.write(f'{sid}\tINDICATION\t{indication}\n')
+                indications_meta_fd.write(f'{indication}\tNAME\t{indication_name}\n')
+
+        indications_fd.close()
+        indications_meta_fd.close()
+
+    def __parse_side_effects(self, input_fp, side_effects_fp, side_effects_meta_fp):
+        """
+        Parse the Sider side effects file.
+
+        Side effects are output in the format
+
+        <sider_id> SIDE_EFFECT <effect_id>
+
+        Side effect names are output in the format
+
+        <effect_id> NAME <effect_name>
+
+        Parameters:
+        -----------
+        source_fp : str
+            The path to the Sider indications file
+
+        side_effects_fp : str
+            The path to the side effects output file
+
+        side_effects_meta_fp : str
+            The path to the side effects meta output file
+        """
+        side_effects_fd = SetWriter(side_effects_fp)
+        side_effects_meta_fd = SetWriter(side_effects_meta_fp)
+
+        with gzip.open(input_fp, 'rt') as input_fd:
+            for line in input_fd:
+                parts = line.strip().split('\t')
+                sid = parts[0]
+                if parts[3] != 'PT':
+                    continue
+
+                side_effect = parts[4]
+                side_effect_name = sanatize_text(parts[5])
+                side_effects_fd.write(f'{sid}\tSIDE_EFFECT\t{side_effect}\n')
+                side_effects_meta_fd.write(f'{side_effect}\tNAME\t{side_effect_name}\n')
+
+        side_effects_fd.close()
+        side_effects_meta_fd.close()
+
+    def parse_sider(self, source_dp, output_dp):
+        """
+        Parse Sider files
+
+        Parameters
+        ----------
+        source_dp : str
+            The path to the source directory
+        output_dp : str
+            The path to the output directory
+        """
+        print_section_header(
+            "Parsing Sider files (%s & %s)" %
+            (bcolors.OKGREEN + source_dp + '/sider_interactions.tsv.gz' + bcolors.ENDC,
+             bcolors.OKGREEN + source_dp + '/sider_side_effects.tsv.gz' + bcolors.ENDC)
+        )
+        start = timer()
+        nb_entries = 0
+
+        self.__parse_indications(
+            join(source_dp, 'sider_interactions.tsv.gz'),
+            join(output_dp, 'sider_indications.txt'),
+            join(output_dp, 'sider_indications_meta.txt')
+        )
+        nb_entries += 1
+
+        self.__parse_side_effects(
+            join(source_dp, 'sider_side_effects.tsv.gz'),
+            join(output_dp, 'sider_effects.txt'),
+            join(output_dp, 'sider_effects_meta.txt')
+        )
+        nb_entries += 1
+
+        print(done_sym + "Processed (%d) files. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)

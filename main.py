@@ -57,6 +57,8 @@ def main():
     # download intact source data
     download_intact_data(sources_dp=sources_dp, srcs_cp=sources_urls)
 
+    # download sider source data
+    download_sider_data(sources_dp=sources_dp, srcs_cp=sources_urls)
     # ----------------------------------------------------------------------
     # processing uniprot entries file
     uniprot_parser = UniProtTxtParser()
@@ -170,6 +172,19 @@ def main():
             export_file_md5(ofp)
     else:
         print(inf_sym + "Intact processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
+
+    # ----------------------------------------------------------------------
+    # processing Sider files
+    sider_parser = SiderParser()
+    sider_fps = [join(preprocessed_dp, fn) for fn in sider_parser.filenames]
+    invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in sider_fps]))
+
+    if invalid_md5:
+        sider_parser.parse_sider(sources_dp, preprocessed_dp)
+        for ofp in sider_fps:
+            export_file_md5(ofp)
+    else:
+        print(inf_sym + "Sider processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
 
 if __name__ == '__main__':
     main()
