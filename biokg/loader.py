@@ -172,3 +172,23 @@ def download_intact_data(sources_dp, srcs_cp):
     download_file_md5_check(srcs_cp["intact"]["intact_zip"], intact_zip_fp)
 
     print_bold_line()
+
+
+def download_sider_data(sources_dp, srcs_cp):
+    """ Download sider database files
+    Parameters
+    ----------
+    sources_dp : str
+        the sources directory path
+    srcs_cp : RawConfigParser
+        source urls config parser
+    """
+    print_section_header("Downloading SIDER data files")
+
+    sider_interactions_fp = join(sources_dp, "sider_interactions.tsv.gz")
+    sider_side_effects_fp = join(sources_dp, "sider_side_effects.tsv.gz")
+
+    download_file_md5_check(srcs_cp["sider"]["indications"], sider_interactions_fp)
+    download_file_md5_check(srcs_cp["sider"]["side_effects"], sider_side_effects_fp)
+
+    print_bold_line()
