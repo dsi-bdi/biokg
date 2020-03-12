@@ -20,6 +20,66 @@ PUBMED_ID_CODE = re.compile("PubMed=\d+")
 SEQ_RANGE_CODE = re.compile("\w+\s+\d+\.\.\d+")
 SEQ_NOTE__CODE = re.compile("\w+\s+\d+\s")
 
+DDI_SIDE_EFFECT_1 = re.compile('The risk or severity of (?P<se>.*) can be (?P<mode>\S+)d when .* is combined with .*')
+DDI_SIDE_EFFECT_2 = re.compile('.* may (?P<mode>\S+) (?P<se>\S+\s?\w*\s?\w*) of .* as a diagnostic agent.')
+DDI_SIDE_EFFECT_3 = re.compile('The (?P<se>\S+\s?\w*\s?\w*) of .* can be (?P<mode>\S+)d when used in combination with .*')
+DDI_SIDE_EFFECT_4 = re.compile('The (?P<se>\S+\s?\w*\s?\w*) of .* can be (?P<mode>\S+)d when it is combined with .*')
+DDI_SIDE_EFFECT_5 = re.compile('.* can cause a decrease in the absorption of .* resulting in a (?P<mode>\S+) (?P<se>\S+\s?\w*\s?\w*) and potentially a decrease in efficacy.')
+DDI_SIDE_EFFECT_6 = re.compile('.* may decrease the excretion rate of .* which could result in a (?P<mode>\S+) (?P<se>\S+\s?\w*\s?\w*).')
+DDI_SIDE_EFFECT_7 = re.compile('.* may increase the excretion rate of .* which could result in a (?P<mode>\S+) (?P<se>\S+\s?\w*\s?\w*) and potentially a reduction in efficacy.')
+DDI_SIDE_EFFECT_8 = re.compile('The (?P<se>\S+\s?\w*\s?\w*) of .* can be (?P<mode>\S+)d when combined with .*')
+DDI_SIDE_EFFECT_9 = re.compile('.* can cause an increase in the absorption of .* resulting in an (?P<mode>\S+)d (?P<se>\S+\s?\w*\s?\w*) and potentially a worsening of adverse effects.')
+DDI_SIDE_EFFECT_10 = re.compile('The risk of a (?P<se>\S+\s?\w*\s?\w*) to .* is (?P<mode>\S+)d when it is combined with .*')
+DDI_SIDE_EFFECT_11 = re.compile('The (?P<se>\S+\s?\w*\s?\w*) of .* can be (?P<mode>\S+)d when combined with .*')
+DDI_SIDE_EFFECT_12 = re.compile('The (?P<se>\S+\s?\w*\s?\w*) of the active metabolites of .* can be (?P<mode>\S+)d when .* is used in combination with .*')
+DDI_SIDE_EFFECT_13 = re.compile('The (?P<se>\S+\s?\w*\s?\w*) of .*, an active metabolite of .* can be (?P<mode>\S+)d when used in combination with .*')
+DDI_SIDE_EFFECT_14 = re.compile('.* may (?P<mode>\S+) the (?P<se>.*) of .*')
+DDI_SIDE_EFFECT_15 = re.compile('.* may (?P<mode>\S+) the central nervous system depressant (?P<se>\S+\s?\S*\s?\S*) of .*')
+
+DDI_SIDE_EFFECTS = [
+    DDI_SIDE_EFFECT_1, DDI_SIDE_EFFECT_2, DDI_SIDE_EFFECT_3, DDI_SIDE_EFFECT_4,
+    DDI_SIDE_EFFECT_5, DDI_SIDE_EFFECT_6, DDI_SIDE_EFFECT_7, DDI_SIDE_EFFECT_8,
+    DDI_SIDE_EFFECT_9, DDI_SIDE_EFFECT_10, DDI_SIDE_EFFECT_11, DDI_SIDE_EFFECT_12,
+    DDI_SIDE_EFFECT_13, DDI_SIDE_EFFECT_14, DDI_SIDE_EFFECT_15
+]
+
+DDI_MODE_MAP = {
+    'reduced': "decrease",
+    'increase': "increase",
+    'higher': "increase",
+    'decrease': "decrease",
+    'reduce': "decrease",
+    'lower': "decrease"
+}
+
+DDI_SE_NAME_MAP = {
+    "central_nervous_system_depressant_(cns_depressant)_activities": 'cns_depression_activities',
+    "(cns_depressant)_activities": 'cns_depression_activities',
+    "cns_depression": 'cns_depression_activities',
+    "cardiotoxic_activities": 'cardiotoxicity',
+    "constipating_activities": 'constipation',
+    "excretion": 'excretion_rate',
+    "hyperkalemic_activities": 'hyperkalemia',
+    "hypertensive_activities": 'hypertension',
+    "qtc-prolonging_activities": "qtc_prolongation",
+    "tachycardic_activities": "tachycardia",
+    "hypokalemic_activities": "hypokalemia",
+    "hypoglycemic_activities": "hypoglycemia",
+    "hypercalcemic_activities": "hypercalcemia",
+    "bradycardic_activities": "bradycardia",
+    "neutropenic_activities": "neutropenia",
+    "orthostatic_hypotensive_activities": "orthostatic_hypotension",
+    "neutropenic_activities": "neutropenia",
+    "pseudotumor_cerebri_activities": "pseudotumor_cerebri",
+    "sedative_activities": "sedation",
+    "ototoxic_activities": "ototoxicity",
+    "neuromuscular_blocking_activities": "neuromuscular_blockade",
+    "nephrotoxic_activities": "nephrotoxicity",
+    "myelosuppressive_activities": "myelosuppression",
+    "hypotensive_activities": "hypotension",
+    "serum_level": "serum_concentration"
+}
+
 
 def export_quads(triplets, file_descriptor):
     """ Export quads to a file
@@ -68,6 +128,10 @@ def sanatize_text(text):
     if text is None:
         return text
     return re.sub('[^a-zA-Z0-9]', '_', text.strip())
+
+
+def sanatize_se_txt(txt):
+    return txt.strip().replace(" ", "_").lower()
 
 
 class UniProtTxtParser:
@@ -740,6 +804,50 @@ class DrugBankParser:
             else:
                 output_fd.write(f'{drug_id}\t{rel_type}\t{poly_id}\t{action}\n')
 
+    def __extract_side_effects(self, desc):
+        """
+        Extracts side effects from drug drug interaction descriptions
+
+        Parameters
+        ----------
+        desc : str
+            The interaction description
+
+        Returns
+        -------
+        side_effects : list
+            The list of side effects of the interaction
+        """
+        side_effects = []
+        for pattern_index, pattern in enumerate(DDI_SIDE_EFFECTS):
+            pg = re.match(pattern, desc)
+            if pg is not None:
+                se_name_list = []
+                se_name = pg.group("se").lower()
+                mode = pg.group("mode")
+
+                # Handle the case of multiple activities eg x, y and z activities
+                has_word_activities = ("activities" in se_name)
+                if has_word_activities:
+                    se_name = se_name.replace(" activities", "")
+                mode_name = DDI_MODE_MAP[mode]
+                if ", and" in se_name:
+                    se_name_list = [sanatize_se_txt(se) for se in se_name.replace("and", "").split(", ")]
+                elif "and" in se_name:
+                    se_name_list = [sanatize_se_txt(se) for se in se_name.split(" and ")]
+                else:
+                    se_name_list = [sanatize_se_txt(se_name)]
+
+                if has_word_activities:
+                    se_name_list = [txt+"_activities" for txt in se_name_list]
+
+                for side_effect in se_name_list:
+                    if side_effect in DDI_SE_NAME_MAP:
+                        side_effect = DDI_SE_NAME_MAP[side_effect]
+                    side_effects.append(f'{mode_name}_{side_effect}')
+                break
+        return side_effects
+
     def __parse_drug_interaction(self, interaction_element, drug_id, output):
         """
         Parse a drug interaction
@@ -768,7 +876,9 @@ class DrugBankParser:
         if dest_text is not None and dest_text != '':
             # Output side effect descritpion if available
             if desc_text is not None and desc_text != '':
-                output.write(f'{drug_id}\tDRUG_INTERACTION\t{dest_text}\t{desc_text}\n')
+                side_effects = self.__extract_side_effects(desc_text)
+                for se in side_effects:
+                    output.write(f'{drug_id}\tDRUG_INTERACTION\t{dest_text}\t{se}\n')
             else:
                 output.write(f'{drug_id}\tDRUG_INTERACTION\t{dest_text}\n')
 
