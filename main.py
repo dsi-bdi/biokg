@@ -62,13 +62,15 @@ def main():
     # ----------------------------------------------------------------------
     # processing uniprot entries file
     uniprot_parser = UniProtTxtParser()
+    uniprot_dp = join(preprocessed_dp, 'uniprot')
+    mkdir(uniprot_dp) if not isdir(uniprot_dp) else None
     uniprot_entries_fp = join(sources_dp, "swissprot_human_entries.txt.gz")
     uniprot_output_files = ["uniprot_facts.txt", "uniprot_metadata.txt", "uniprot_ppi.txt"]
-    uniprot_output_fps = [join(output_dp, fn) for fn in uniprot_output_files]
+    uniprot_output_fps = [join(uniprot_dp, fn) for fn in uniprot_output_files]
     invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in uniprot_output_fps]))
 
     if invalid_md5:
-        uniprot_parser.parse(uniprot_entries_fp, output_dp)
+        uniprot_parser.parse(uniprot_entries_fp, uniprot_dp)
         for ofp in uniprot_output_fps:
             export_file_md5(ofp)
     else:
@@ -77,11 +79,13 @@ def main():
     # ----------------------------------------------------------------------
     # processing HPA entries file
     hpa_parser = HumanProteinAtlasParser()
+    hpa_dp = join(preprocessed_dp, 'hpa')
+    mkdir(hpa_dp) if not isdir(hpa_dp) else None
     hpa_files = ["hpa_antibodies.txt", "hpa_cellines_exp.txt", "hpa_tissues_exp.txt"]
-    hpa_fps = [join(preprocessed_dp, fn) for fn in hpa_files]
+    hpa_fps = [join(hpa_dp, fn) for fn in hpa_files]
     invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in hpa_fps]))
     if invalid_md5:
-        hpa_parser.parse_database_xml(join(sources_dp, "proteinatlas.xml.gz"), preprocessed_dp)
+        hpa_parser.parse_database_xml(join(sources_dp, "proteinatlas.xml.gz"), hpa_dp)
         for ofp in hpa_fps:
             export_file_md5(ofp)
     else:
@@ -89,7 +93,9 @@ def main():
     # ----------------------------------------------------------------------
     # processing Cellosaurus database file
     cell_parser = CellosaurusParser()
-    cell_parser.parse_db_file(join(sources_dp, "cellosaurus_data.txt"), preprocessed_dp)
+    cell_dp = join(preprocessed_dp, 'cellosaurus')
+    mkdir(cell_dp) if not isdir(cell_dp) else None
+    cell_parser.parse_db_file(join(sources_dp, "cellosaurus_data.txt"), cell_dp)
 
     # TODO: export md5 hashes of resulting files as in other databases
 
@@ -97,12 +103,14 @@ def main():
     # processing DrugBank entries file
     drugbank_source_fp = join(sources_dp, "drugbank_all_full_database.xml.zip")
     drugbank_parser = DrugBankParser()
-    drugbank_fps = [join(preprocessed_dp, fn) for fn in drugbank_parser.filelist]
+    db_dp = join(preprocessed_dp, 'drugbank')
+    mkdir(db_dp) if not isdir(db_dp) else None
+    drugbank_fps = [join(db_dp, fn) for fn in drugbank_parser.filelist]
     invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in drugbank_fps]))
     if invalid_md5:
         # Skip drugbank processing if the file is not in the source folder
         if exists(drugbank_source_fp):
-            drugbank_parser.parse_drugbank_xml(drugbank_source_fp, preprocessed_dp)
+            drugbank_parser.parse_drugbank_xml(drugbank_source_fp, db_dp)
             for ofp in drugbank_fps:
                 export_file_md5(ofp)
         else:
@@ -113,10 +121,13 @@ def main():
     # ----------------------------------------------------------------------
     # processing KEGG links
     kegg_parser = KeggParser()
-    kegg_fp = join(preprocessed_dp, kegg_parser.filename)
+    drugbank_parser = DrugBankParser()
+    kegg_dp = join(preprocessed_dp, 'kegg')
+    mkdir(kegg_dp) if not isdir(kegg_dp) else None
+    kegg_fp = join(kegg_dp, kegg_parser.filename)
     invalid_md5 = not file_has_valid_md5(kegg_fp)
     if invalid_md5:
-        kegg_parser.parse_kegg(preprocessed_dp)
+        kegg_parser.parse_kegg(kegg_dp)
         export_file_md5(kegg_fp)
     else:
         print(inf_sym + "KEGG processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
@@ -124,11 +135,13 @@ def main():
     # ----------------------------------------------------------------------
     # processing Reactome entries file
     reactome_parser = ReactomeParser()
-    reactome_fps = [join(preprocessed_dp, fn) for fn in reactome_parser.filenames]
+    reactome_dp = join(preprocessed_dp, 'reactome')
+    mkdir(reactome_dp) if not isdir(reactome_dp) else None
+    reactome_fps = [join(reactome_dp, fn) for fn in reactome_parser.filenames]
     invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in reactome_fps]))
 
     if invalid_md5:
-        reactome_parser.parse_reactome(sources_dp, preprocessed_dp)
+        reactome_parser.parse_reactome(sources_dp, reactome_dp)
         for ofp in reactome_fps:
             export_file_md5(ofp)
     else:
@@ -137,11 +150,13 @@ def main():
     # ----------------------------------------------------------------------
     # processing CTD entries file
     ctd_parser = CTDParser()
-    ctd_fps = [join(preprocessed_dp, fn) for fn in ctd_parser.filenames]
+    ctd_dp = join(preprocessed_dp, 'ctd')
+    mkdir(ctd_dp) if not isdir(ctd_dp) else None
+    ctd_fps = [join(ctd_dp, fn) for fn in ctd_parser.filenames]
     invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in ctd_fps]))
 
     if invalid_md5:
-        ctd_parser.parse_ctd(sources_dp, preprocessed_dp)
+        ctd_parser.parse_ctd(sources_dp, ctd_dp)
         for ofp in ctd_fps:
             export_file_md5(ofp)
     else:
@@ -150,11 +165,13 @@ def main():
     # ----------------------------------------------------------------------
     # processing Phosphosite entries file
     phosphosite_parser = PhosphositeParser()
-    phosphosite_fps = [join(preprocessed_dp, fn) for fn in phosphosite_parser.filenames]
+    phosphosite_dp = join(preprocessed_dp, 'phosphosite')
+    mkdir(phosphosite_dp) if not isdir(phosphosite_dp) else None
+    phosphosite_fps = [join(phosphosite_dp, fn) for fn in phosphosite_parser.filenames]
     invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in phosphosite_fps]))
 
     if invalid_md5:
-        phosphosite_parser.parse_phosphosite(sources_dp, preprocessed_dp)
+        phosphosite_parser.parse_phosphosite(sources_dp, phosphosite_dp)
         for ofp in phosphosite_fps:
             export_file_md5(ofp)
     else:
@@ -163,11 +180,13 @@ def main():
     # ----------------------------------------------------------------------
     # processing Intact zip file
     intact_parser = IntactParser()
-    intact_fps = [join(preprocessed_dp, fn) for fn in intact_parser.filenames]
+    intact_dp = join(preprocessed_dp, 'intact')
+    mkdir(intact_dp) if not isdir(intact_dp) else None
+    intact_fps = [join(intact_dp, fn) for fn in intact_parser.filenames]
     invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in intact_fps]))
 
     if invalid_md5:
-        intact_parser.parse_intact(sources_dp, preprocessed_dp, join(output_dp, 'uniprot_ppi.txt'))
+        intact_parser.parse_intact(sources_dp, intact_dp, join(uniprot_dp, 'uniprot_ppi.txt'))
         for ofp in intact_fps:
             export_file_md5(ofp)
     else:
@@ -176,11 +195,13 @@ def main():
     # ----------------------------------------------------------------------
     # processing Sider files
     sider_parser = SiderParser()
-    sider_fps = [join(preprocessed_dp, fn) for fn in sider_parser.filenames]
+    sider_dp = join(preprocessed_dp, 'sider')
+    mkdir(sider_dp) if not isdir(sider_dp) else None
+    sider_fps = [join(sider_dp, fn) for fn in sider_parser.filenames]
     invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in sider_fps]))
 
     if invalid_md5:
-        sider_parser.parse_sider(sources_dp, preprocessed_dp)
+        sider_parser.parse_sider(sources_dp, sider_dp)
         for ofp in sider_fps:
             export_file_md5(ofp)
     else:

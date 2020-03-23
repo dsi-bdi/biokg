@@ -1174,9 +1174,18 @@ class KeggParser:
                 if pred is None:
                     sub_type = sub.split(':')[0]
                     obj_type = obj.split(':')[0]
-                    pred = f'KEGG_{self._kegg_abv_names[sub_type]}_{self._kegg_abv_names[obj_type]}'
+                    pred = f'{self._kegg_abv_names[sub_type]}_{self._kegg_abv_names[obj_type]}'
 
-                output_fd.write(f'{sub}\t{pred}\t{obj}\n')
+                
+                pre, sub_kid = sub.split(':')
+                if sub_kid[0].isdigit():
+                    sub_kid = sub
+
+                pre, obj_kid = obj.split(':')
+                if obj_kid[0].isdigit():
+                    obj_kid = obj
+
+                output_fd.write(f'{sub_kid}\t{pred}\t{obj_kid}\n')
             output_fd.flush()
 
     def parse_kegg(self, output_dp, request_interval=0.2):
@@ -1229,7 +1238,7 @@ class ReactomeParser:
             "reactome_pathway_rels.txt",
             "reactome_complex_pathway_rels.txt",
             "reactome_go_mapping.txt",
-            "reactome_omim_mapping.txt"
+            "reactome_isoform_pathway.txt"
         ]
 
     @property
@@ -1483,7 +1492,7 @@ class ReactomeParser:
 
         self.__parse_omim_mappings(
             join(source_dp, "reactome_omim_mapping.txt"),
-            join(output_dp, "reactome_omim_mapping.txt")
+            join(output_dp, "reactome_isoform_pathway.txt")
         )
         nb_entries += 1
         print(done_sym + "Processed (%d) files. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
