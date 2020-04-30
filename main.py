@@ -50,7 +50,7 @@ def main():
 
     # download ctd source data
     download_ctd_data(sources_dp=sources_dp, srcs_cp=sources_urls)
-    
+
     # download phosphosite source data
     download_phosphosite_data(sources_dp=sources_dp, srcs_cp=sources_urls)
 
@@ -64,7 +64,7 @@ def main():
     uniprot_parser = UniProtTxtParser()
     uniprot_dp = join(preprocessed_dp, 'uniprot')
     mkdir(uniprot_dp) if not isdir(uniprot_dp) else None
-    uniprot_entries_fp = join(sources_dp, "swissprot_human_entries.txt.gz")
+    uniprot_entries_fp = join(sources_dp, "swissprot_entries.txt.gz")
     uniprot_output_files = ["uniprot_facts.txt", "uniprot_metadata.txt", "uniprot_ppi.txt"]
     uniprot_output_fps = [join(uniprot_dp, fn) for fn in uniprot_output_files]
     invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in uniprot_output_fps]))

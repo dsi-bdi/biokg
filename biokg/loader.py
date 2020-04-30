@@ -18,13 +18,9 @@ def download_uniprot_files(sources_dp, srcs_cp):
     """
     # download source data (uniprot)
     print_section_header("Downloading UniProt data files")
-    swissprot_hsa_id_map_fp = join(sources_dp, "swissprot_human_ids_mapping.txt.gz")
-    swissprot_hsa_ids_fp = join(sources_dp, "swissprot_human_ids.txt.gz")
-    swissprot_hsa_entries_fp = join(sources_dp, "swissprot_human_entries.txt.gz")
+    swissprot_entries_fp = join(sources_dp, "swissprot_entries.txt.gz")
 
-    download_file_md5_check(srcs_cp["uniprot"]["swissprot_human_ids_mapping"], swissprot_hsa_id_map_fp)
-    download_file_md5_check(srcs_cp["uniprot"]["swissprot_human_ids"], swissprot_hsa_ids_fp)
-    download_file_md5_check(srcs_cp["uniprot"]["swissprot_human_entries"], swissprot_hsa_entries_fp)
+    download_file_md5_check(srcs_cp["uniprot"]["swissprot_entries"], swissprot_entries_fp)
     print_bold_line()
 
 
