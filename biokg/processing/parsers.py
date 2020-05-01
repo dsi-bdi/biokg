@@ -1472,7 +1472,7 @@ class ReactomeParser:
 
     def __parse_go_mappings(self, mappings_fp, output_fp):
         """
-        Parse the reactome gene association mappings. Restricted to humana (9606)
+        Parse the reactome gene association mappings.
         Triples output in format
 
         <protein> <relation_type> <go> <reactome>
@@ -1492,7 +1492,6 @@ class ReactomeParser:
             for line in mappings_fd:
                 parts = line.strip().split('\t')
 
-                # Only include human mappings
                 org = parts[12].split(':')[1]
                 uniprot_id = parts[1]
                 rel_type = parts[8]
@@ -1632,7 +1631,7 @@ class CTDParser:
         print(done_sym + "Processed (%d) entries. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
         return chem_id_map
 
-    def __parse_gene_id_map(self, gene_id_mapping_fp, swiss_prot_human_fp):
+    def __parse_gene_id_map(self, gene_id_mapping_fp):
         """
         Parse ctd gene id to uniprot protein id mapping
 
@@ -1652,11 +1651,7 @@ class CTDParser:
         )
         nb_entries = 0
         start = timer()
-        gene_id_map = {}
-        valid_proteins = set()
-        with gzip.open(swiss_prot_human_fp, 'rt') as human_protein_fd:
-            for line in human_protein_fd:
-                valid_proteins.add(line.strip())
+        gene_id_map = {}  
 
         with gzip.open(gene_id_mapping_fp, 'rt') as gene_map_fd:
             for line in gene_map_fd:
@@ -1669,8 +1664,7 @@ class CTDParser:
                     prot_ids = parts[7].split('|')
                     valid_prot_ids = []
                     for prot_id in prot_ids:
-                        if prot_id in valid_proteins:
-                            valid_prot_ids.append(prot_id)
+                        valid_prot_ids.append(prot_id)
                     if len(valid_prot_ids) > 0:
                         gene_id_map[gene_id] = valid_prot_ids
 
@@ -2328,8 +2322,7 @@ class CTDParser:
         nb_entries += 1
 
         self._gene_id_map = self.__parse_gene_id_map(
-            join(source_dp, "CTD_genes.tsv.gz"),
-            join(source_dp, "swissprot_human_ids.txt.gz")
+            join(source_dp, "CTD_genes.tsv.gz")
         )
         nb_entries += 1
 
@@ -2430,7 +2423,7 @@ class PhosphositeParser():
 
     def __parse_sites(self, source_fp, output_fp):
         """
-        Parse the phosphosite phosphorylation site file. Restricted to human
+        Parse the phosphosite phosphorylation site file.
         Triples output in format
 
         <substrate> PHOSPHORYLATION_SITE <site>
@@ -2469,7 +2462,7 @@ class PhosphositeParser():
 
     def __parse_kinase_substrate(self, source_fp, output_fp):
         """
-        Parse the phosphosite kinase_substrate file. Restricted to human
+        Parse the phosphosite kinase_substrate file.
         Quads output in format
 
         <kinase> PHOSPHORYLATES <substrate> <site>
