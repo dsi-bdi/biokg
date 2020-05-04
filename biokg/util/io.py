@@ -75,6 +75,10 @@ def download_file(url, local_path, checksum=None):
     file_name = url.split('/')[-1]
     tmp_file = os.path.join(tmp_dir, file_name)
 
+    header = [('User-agent', 'Mozilla/5.0 (X11; Fedora; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.100 Safari/537.36')]
+    opener = urllib.request.build_opener()
+    opener.addheaders = header
+    urllib.request.install_opener(opener)
     urllib.request.urlretrieve(url, tmp_file)
 
     # check the checksum if provided

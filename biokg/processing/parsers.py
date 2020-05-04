@@ -134,6 +134,39 @@ def sanatize_se_txt(txt):
     return txt.strip().replace(" ", "_").lower()
 
 
+class Species:
+
+    def __init__(self, code, kegg_organism, node, scientific_name):
+        self.code = code
+        self.kegg_organism = kegg_organism
+        self.node = node
+        self.scientific_name = scientific_name
+
+
+VALID_SPECIES = [
+    Species('ARATH', 'ath', '3702', 'arabidopsis thaliana'),
+    Species('BACSU', 'bsu', '224308', 'bacillus subtilis (strain 168)'),
+    Species('BOVIN', 'bta', '9913', 'bos taurus'),
+    Species('CAEEL', 'cel', '6239', 'caenorhabditis elegans'),
+    Species('CHICK', 'gga', '9031', 'gallus gallus'),
+    Species('DANRE', 'dre', '7955', 'danio rerio'),
+    Species('DICDI', 'ddi', '44689', 'dictyostelium discoideum'),
+    Species('DROME', 'dme', '7227', 'drosophila melanogaster'),
+    Species('ECO57', 'ece', '83334', 'escherichia coli o157:h7'),
+    Species('ECOLI', 'eco', '83333', 'escherichia coli (strain k12)'),
+    Species('HUMAN', 'hsa', '9606', 'homo sapiens'),
+    Species('MOUSE', 'mmu', '10090', 'mus musculus'),
+    Species('MYCTO', 'mtc', '83331', 'mycobacterium tuberculosis (strain cdc 1551 / oshkosh)'),
+    Species('MYCTU', 'mtu', '83332', 'mycobacterium tuberculosis (strain atcc 25618 / h37rv)'),
+    Species('ORYSJ', 'osa', '39947', 'oryza sativa subsp. japonica'),
+    Species('PONAB', 'pon', '9601', 'pongo abelii'),
+    Species('RAT', 'rno', '10116', 'rattus norvegicus'),
+    Species('SCHPO', 'spo', '284812', 'schizosaccharomyces pombe (strain 972 / atcc 24843)'),
+    Species('XENLA', 'xla', '8355', 'xenopus laevis'),
+    Species('YEAST', 'sce', '559292', 'saccharomyces cerevisiae (strain atcc 204508 / s288c)'),
+    Species('PIG', 'ssc', '9823', 'Sus scrofa')
+]
+
 class UniProtTxtParser:
     """
     A UNIPROT database text file parser class
@@ -158,10 +191,11 @@ class UniProtTxtParser:
         list
             list of extracted facts
         """
+        valid_species = False
         entry_facts = []
         entry_metadata = []
         entry_ppi = []
-
+        species_list = map(lambda x: x.node, VALID_SPECIES)
         entry_dictionary = dict()
         for line in entry:
             line_prefix = line[:2]
@@ -202,6 +236,18 @@ class UniProtTxtParser:
             for short_n in short_names:
                 entry_metadata.append([entry_code, "SHORT_NAME", short_n])
 
+        # ------------------------------------------------------------------------
+        # Processing OX prefix section
+        # ------------------------------------------------------------------------
+        if "OX" in entry_dictionary:
+            organism_id = entry_dictionary['OX'].strip()
+            organism_id = organism_id.split('=')[1]
+            if organism_id.endswith(';'):
+                organism_id = organism_id[0:-1]
+
+            organism_id = organism_id.split(' ')[0]
+            if organism_id in species_list:
+                valid_species = True
         # ------------------------------------------------------------------------
         # Processing OC prefix section
         # ------------------------------------------------------------------------
@@ -302,7 +348,10 @@ class UniProtTxtParser:
             seq_annotations = [v.strip().split() for v in re.findall(SEQ_NOTE__CODE, ft_content)]
 
         # ------------------------------------------------------------------------
-        return entry_facts, entry_metadata, entry_ppi
+        if valid_species:
+            return entry_facts, entry_metadata, entry_ppi
+        else:
+            return [], [], []
 
     def parse(self, filepath, output_dp):
         """ Parse a Uniprot textual data file and output findings to a set of files in a specified directory
@@ -1098,7 +1147,7 @@ class KeggParser:
              'glycan', 'reaction', 'rclass', 'enzyme', 'network', 'variant', 'disease' ,
              'drug', 'dgroup', 'environ', 'atc', 'jtc', 'ndc', 'yj', 'pubmed']
 
-        self._kegg_dbs_select = ['pathway', 'brite', 'module', 'ko', 'hsa',
+        self._kegg_dbs_select = ['pathway', 'brite', 'module', 'ko', 'hsa', 
                                 'vg', 'ag', 'compound', 'glycan', 'reaction',
                                 'rclass', 'enzyme', 'network', 'variant', 
                                 'disease', 'drug', 'dgroup', 'environ' ,
@@ -1222,6 +1271,23 @@ class KeggParser:
                              
                 #Sleep between requests 
                 time.sleep(request_interval)
+        
+        organisms = map(lambda x: x.kegg_organism, VALID_SPECIES)
+        for organism in organisms:
+            if organism == 'hsa':
+                continue
+            self._kegg_abv_names[organism] = organism.upper()
+            for db in ['brite', 'module', 'ontology', 'pathway', 'enzyme']:
+                link_uri = f'{self._base_uri}/{organism}/{db}'
+                self.__parse_uri_triples(link_uri, output_fd)
+                nb_endpoints += 1
+
+                if nb_endpoints % 5 == 0:
+                    speed = nb_endpoints / (timer() - start)
+                    msg = prc_sym + "Processed (%d) endpoints.  Speed: (%1.5f) endpoints/second" % (nb_endpoints, speed)
+                    print("\r" + msg, end="", flush=True)
+                #Sleep between requests 
+                time.sleep(request_interval)
         output_fd.close()
         print(done_sym + " Took %1.2f Seconds." % (timer() - start), flush=True)
 
@@ -1311,9 +1377,7 @@ class ReactomeParser:
         with open(pathway_fp, 'r') as pathway_fd:
             for line in pathway_fd:
                 (parent, child) = line.strip().split('\t')
-                # filter out non human pathways
-                if parent.startswith('R-HSA') and child.startswith('R-HSA'):
-                    output_fd.write(f'{child}\tPARENT_PATHWAY\t{parent}\n')
+                output_fd.write(f'{child}\tPARENT_PATHWAY\t{parent}\n')
         output_fd.close()
 
     def __parse_complex_pathway(self, comp_path_fp, output_fp):
@@ -1403,14 +1467,12 @@ class ReactomeParser:
             next(omim_mappings_fd)
             for line in omim_mappings_fd:
                 (iso, pathway, name) = line.strip().split('\t')
-                # Filter out non human pathways
-                if pathway.startswith('R-HSA'):
-                    output_fd.write(f'{iso}\tISOFORM_MEMBER_OF\t{pathway}\n')
+                output_fd.write(f'{iso}\tISOFORM_MEMBER_OF\t{pathway}\n')
             output_fd.close()
 
     def __parse_go_mappings(self, mappings_fp, output_fp):
         """
-        Parse the reactome gene association mappings. Restricted to humana (9606)
+        Parse the reactome gene association mappings.
         Triples output in format
 
         <protein> <relation_type> <go> <reactome>
@@ -1430,17 +1492,12 @@ class ReactomeParser:
             for line in mappings_fd:
                 parts = line.strip().split('\t')
 
-                # Only include human mappings
                 org = parts[12].split(':')[1]
-                if org != '9606':
-                    continue
                 uniprot_id = parts[1]
                 rel_type = parts[8]
                 go_id = parts[4]
                 reactome_id = parts[5].split(':')[1]
-                # Allow HSA (homo sapien) or NUL (multiple species)
-                if reactome_id.startswith('R-HSA') or reactome_id.startswith('R-NUL'):
-                    output_fd.write(f'{uniprot_id}\t{rel_type}\t{go_id}\t{reactome_id}\n')
+                output_fd.write(f'{uniprot_id}\t{rel_type}\t{go_id}\t{reactome_id}\t{org}\n')
 
         output_fd.close()
 
@@ -1574,7 +1631,7 @@ class CTDParser:
         print(done_sym + "Processed (%d) entries. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
         return chem_id_map
 
-    def __parse_gene_id_map(self, gene_id_mapping_fp, swiss_prot_human_fp):
+    def __parse_gene_id_map(self, gene_id_mapping_fp):
         """
         Parse ctd gene id to uniprot protein id mapping
 
@@ -1594,11 +1651,7 @@ class CTDParser:
         )
         nb_entries = 0
         start = timer()
-        gene_id_map = {}
-        valid_proteins = set()
-        with gzip.open(swiss_prot_human_fp, 'rt') as human_protein_fd:
-            for line in human_protein_fd:
-                valid_proteins.add(line.strip())
+        gene_id_map = {}  
 
         with gzip.open(gene_id_mapping_fp, 'rt') as gene_map_fd:
             for line in gene_map_fd:
@@ -1611,8 +1664,7 @@ class CTDParser:
                     prot_ids = parts[7].split('|')
                     valid_prot_ids = []
                     for prot_id in prot_ids:
-                        if prot_id in valid_proteins:
-                            valid_prot_ids.append(prot_id)
+                        valid_prot_ids.append(prot_id)
                     if len(valid_prot_ids) > 0:
                         gene_id_map[gene_id] = valid_prot_ids
 
@@ -2270,8 +2322,7 @@ class CTDParser:
         nb_entries += 1
 
         self._gene_id_map = self.__parse_gene_id_map(
-            join(source_dp, "CTD_genes.tsv.gz"),
-            join(source_dp, "swissprot_human_ids.txt.gz")
+            join(source_dp, "CTD_genes.tsv.gz")
         )
         nb_entries += 1
 
@@ -2372,7 +2423,7 @@ class PhosphositeParser():
 
     def __parse_sites(self, source_fp, output_fp):
         """
-        Parse the phosphosite phosphorylation site file. Restricted to human
+        Parse the phosphosite phosphorylation site file.
         Triples output in format
 
         <substrate> PHOSPHORYLATION_SITE <site>
@@ -2404,16 +2455,14 @@ class PhosphositeParser():
                     acc_id = parts[2]
                     site = parts[4]
                     organism = parts[6]
-                    # filter out entry if non-human
-                    if organism == 'human':
-                        nb_entries += 1
-                        output_fd.write(f'{acc_id}\tPHOSPHORYLATION_SITE\t{site}\n')
+                    nb_entries += 1
+                    output_fd.write(f'{acc_id}\tPHOSPHORYLATION_SITE\t{site}\t{organism}\n')
         output_fd.close()
         return nb_entries
 
     def __parse_kinase_substrate(self, source_fp, output_fp):
         """
-        Parse the phosphosite kinase_substrate file. Restricted to human
+        Parse the phosphosite kinase_substrate file.
         Quads output in format
 
         <kinase> PHOSPHORYLATES <substrate> <site>
@@ -2448,10 +2497,8 @@ class PhosphositeParser():
                     sub_acc_id = parts[6]
                     sub_organism = parts[8]
                     site = parts[9]
-                    # filter out entry if either kinase or substrate are non-human
-                    if kin_organism == 'human' and sub_organism == 'human':
-                        nb_entries += 1
-                        output_fd.write(f'{kin_acc_id}\tPHOSPHORYLATES\t{sub_acc_id}\t{site}\n')
+                    nb_entries += 1
+                    output_fd.write(f'{kin_acc_id}\tPHOSPHORYLATES\t{sub_acc_id}\t{site}\t{kin_organism}\t{sub_organism}\n')
         output_fd.close()
         return nb_entries
 
