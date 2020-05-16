@@ -1901,7 +1901,7 @@ class CTDParser:
                             if has_refs:
                                 output_fd.write(f'{prot_id}\tASSOCIATED_DISEASE\t{disease_id}\t{data_status}\t{pubmed_refs}\n')
                             else:
-                                output_fd.write(f'{prot_id}\tASSOCIATED_DISEASE\t{data_status}\t{disease_id}\n')
+                                output_fd.write(f'{prot_id}\tASSOCIATED_DISEASE\t{disease_id}\t{data_status}\n')
                     if nb_entries % 5 == 0:
                         speed = nb_entries / (timer() - start)
                         msg = prc_sym + "Processed (%d) entries.  Speed: (%1.5f) entries/second" % (nb_entries, speed)
