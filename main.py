@@ -121,14 +121,14 @@ def main():
     # ----------------------------------------------------------------------
     # processing KEGG links
     kegg_parser = KeggParser()
-    drugbank_parser = DrugBankParser()
     kegg_dp = join(preprocessed_dp, 'kegg')
     mkdir(kegg_dp) if not isdir(kegg_dp) else None
-    kegg_fp = join(kegg_dp, kegg_parser.filename)
-    invalid_md5 = not file_has_valid_md5(kegg_fp)
+    kegg_fps = [join(kegg_dp, fn) for fn in kegg_parser.filelist]
+    invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in kegg_fps]))
     if invalid_md5:
         kegg_parser.parse_kegg(kegg_dp)
-        export_file_md5(kegg_fp)
+        for ofp in kegg_fps:
+            export_file_md5(ofp)
     else:
         print(inf_sym + "KEGG processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
 
