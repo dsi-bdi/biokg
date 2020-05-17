@@ -3,7 +3,7 @@
 from os.path import join, isdir, exists
 from os import mkdir
 from configparser import RawConfigParser
-
+import sys
 from biokg.loader import *
 from biokg.util.extras import program_header
 from biokg.processing.parsers import *
@@ -59,6 +59,12 @@ def main():
 
     # download sider source data
     download_sider_data(sources_dp=sources_dp, srcs_cp=sources_urls)
+
+    # download drugbank source data
+    if len(sys.argv) >= 3:
+        db_user = sys.argv[1]
+        db_pass = sys.argv[2]
+        download_drugbank_data(sources_dp=sources_dp, srcs_cp=sources_urls, username=db_user, password=db_pass)
     # ----------------------------------------------------------------------
     # processing uniprot entries file
     uniprot_parser = UniProtTxtParser()

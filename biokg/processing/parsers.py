@@ -887,6 +887,12 @@ class DrugBankParser:
                 else:
                     se_name_list = [sanatize_se_txt(se_name)]
 
+                # decrease_excretion_rate
+                if pattern_index == 5:
+                    se_name_list.append('decrease_excretion_rate')
+                elif pattern_index == 6:
+                    se_name_list.append('increase_excretion_rate')
+
                 if has_word_activities:
                     se_name_list = [txt+"_activities" for txt in se_name_list]
 
