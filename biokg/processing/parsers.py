@@ -289,11 +289,11 @@ class UniProtTxtParser:
                 for line in go_lines:
                     go_code = line.split(";")[1].strip()
                     if "; F:" in line:
-                        go_code_type = "GO_BIO_FUNC"
+                        go_code_type = "GO_BP"
                     elif "; P:" in line:
-                        go_code_type = "GO_MOL_PROC"
+                        go_code_type = "GO_MF"
                     else:
-                        go_code_type = "GO_CELL_LOC"
+                        go_code_type = "GO_CC"
                     entry_facts.append([entry_code, go_code_type, go_code])
 
             if "HPA" in links_lines_dict:
@@ -516,7 +516,7 @@ class HumanProteinAtlasParser:
         cl_exp_fd = open(cl_exp_fp, "w")
         tissue_exp_fd = open(tissue_exp_fp, "w")
         ab_data_fd = open(ab_data_fp, "w")
-
+        
         print_section_header("Parsing HPA XML file (%s)" % (bcolors.OKGREEN + filepath + bcolors.ENDC))
         start = timer()
         nb_entries = 0
@@ -1110,7 +1110,7 @@ class DrugBankParser:
         """
         output_writers = {key: SetWriter(join(output_dp, fn)) for key, fn in self._filemap.items()}
         output_writers['pathway'].clear_on_flush = False
-
+        
         with ZipFile(filepath, 'r') as dbzip:
             with dbzip.open(filename, force_zip64=True) as xmlfile:
                 print_section_header("Parsing Drugbank XML file (%s)" % 
@@ -1141,24 +1141,39 @@ class KeggParser:
 
     def __init__(self):
         self._base_uri = 'http://rest.kegg.jp/link'
-        self._filename = 'kegg_links.txt'
+        
+        
+        self._filenames = [
+            'glycan_pathway.txt',
+            'disease_pathway.txt',
+            'disease_drug.txt',
+            'drug_pathway.txt',
+            'gene_disease.txt',
+            'gene_drug.txt',
+            'gene_pathway.txt',
+            'network_disease.txt',
+            'network_drug.txt',
+            'network_pathway.txt'
+        ]
+        # 'kegg_links.txt'
         
         self._kegg_dbs_full = ['pathway', 'brite', 'module', 'ko', 'genome', 'hsa', 'vg', 'ag', 'compound',
              'glycan', 'reaction', 'rclass', 'enzyme', 'network', 'variant', 'disease' ,
              'drug', 'dgroup', 'environ', 'atc', 'jtc', 'ndc', 'yj', 'pubmed']
 
-        self._kegg_dbs_select = ['pathway', 'brite', 'module', 'ko', 'hsa', 
-                                'vg', 'ag', 'compound', 'glycan', 'reaction',
-                                'rclass', 'enzyme', 'network', 'variant', 
-                                'disease', 'drug', 'dgroup', 'environ' ,
-                                'atc', 'ndc', 'pubmed']
+        self._kegg_dbs_select = ['pathway', 'drug', 'disease', 'network', 'glycan']
+        # self._kegg_db_select = ['pathway', 'brite', 'module', 'ko', 'hsa', 
+        #                         'vg', 'ag', 'compound', 'glycan', 'reaction',
+        #                         'rclass', 'enzyme', 'network', 'variant', 
+        #                         'disease', 'drug', 'dgroup', 'environ' ,
+        #                         'atc', 'ndc', 'pubmed']
+
 
         self._kegg_abv_names = {
             'path': 'PATHWAY',
             'br': 'BRITE',
             'md': 'MODULE',
-            'ko': 'ONTOLOGY',
-            'hsa': 'HOMOSAPIEN',
+            'ko': 'ORTHOLOGY',
             'gn': 'GENOME',
             'vg': 'VIRUSGENE',
             'ag': 'ADDENDUMGENE',
@@ -1177,12 +1192,35 @@ class KeggParser:
             'jtc': 'JTC',
             'ndc': 'NDC',
             'yj': 'YJ',
-            'pmid': 'PUBMED'
+            'pmid': 'PUBMED',
+            'ath': 'GENE', 
+            'bsu': 'GENE',
+            'bta': 'GENE',
+            'cel': 'GENE',
+            'gga': 'GENE',
+            'dre': 'GENE',
+            'ddi': 'GENE',
+            'dme': 'GENE',
+            'ece': 'GENE',
+            'eco': 'GENE',
+            'hsa': 'GENE',
+            'mmu': 'GENE',
+            'mtc': 'GENE',
+            'mtu': 'GENE',
+            'osa': 'GENE',
+            'pon': 'GENE',
+            'rno': 'GENE',
+            'spo': 'GENE',
+            'xla': 'GENE',
+            'sce': 'GENE',
+            'ssc': 'GENE'
         }
+
+        
 
 
     @property
-    def filename(self):
+    def filelist(self):
         """
         Get KEGG filename 
 
@@ -1191,10 +1229,10 @@ class KeggParser:
         filename : str
             the name of the KEGG output file
         """
-        return self._filename
+        return self._filenames
 
 
-    def __parse_uri_triples(self, uri, output_fd):
+    def __parse_uri_triples(self, uri, output_fd=None):
         """
         Parse any links returned by the given uri.
         If the uri returns links they predicate will be determined by the 
@@ -1214,28 +1252,49 @@ class KeggParser:
         """
         resp = requests.get(uri)
         # Endpoint may not be a valid source/target database pair
+        pred = ''
+        triples = []
         if resp.ok:
             pred = None
             for line in resp.iter_lines(decode_unicode=True):
                 (sub, obj) = line.split('\t')
-                            
-                # Determine the predicate from the types of the subjects and objects
-                if pred is None:
-                    sub_type = sub.split(':')[0]
-                    obj_type = obj.split(':')[0]
-                    pred = f'{self._kegg_abv_names[sub_type]}_{self._kegg_abv_names[obj_type]}'
+                sub_type = sub.split(':')[0]
+                obj_type = obj.split(':')[0]
+                sub_name = self._kegg_abv_names[sub_type]
+                obj_name = self._kegg_abv_names[obj_type]
 
-                
-                pre, sub_kid = sub.split(':')
-                if sub_kid[0].isdigit():
-                    sub_kid = sub
+                if sub_name == 'GENE':
+                    pre, obj_kid = obj.split(':')
+                    if obj_kid[0].isdigit():
+                        obj_kid = obj
+                    if output_fd is None:
+                        file_name = f'{sub_name}_{obj_name}.txt'.lower()
+                        output_fd = SetWriter(join(self._output_dp, file_name))
+                    output_fd.write(f'{sub}\t{sub_name}_{obj_name}\t{obj_kid}\n')
+                elif obj_name == 'GENE':
+                    pre, sub_kid = sub.split(':')
+                    if sub_kid[0].isdigit():
+                        sub_kid = sub
+                    if output_fd is None:
+                        file_name = f'{obj_name}_{sub_name}.txt'.lower()
+                        output_fd = SetWriter(join(self._output_dp, file_name))
+                    output_fd.write(f'{obj}\t{obj_name}_{sub_name}\t{sub_kid}\n')
 
-                pre, obj_kid = obj.split(':')
-                if obj_kid[0].isdigit():
-                    obj_kid = obj
+                else:
+                    pre, sub_kid = sub.split(':')
+                    if sub_kid[0].isdigit():
+                        sub_kid = sub
 
-                output_fd.write(f'{sub_kid}\t{pred}\t{obj_kid}\n')
+                    pre, obj_kid = obj.split(':')
+                    if obj_kid[0].isdigit():
+                        obj_kid = obj
+                    if output_fd is None:
+                        file_name = f'{sub_name}_{obj_name}.txt'.lower()
+                        output_fd = SetWriter(join(self._output_dp, file_name))
+                    output_fd.write(f'{sub_kid}\t{sub_name}_{obj_name}\t{obj_kid}\n')
+            
             output_fd.flush()
+            return output_fd
 
     def parse_kegg(self, output_dp, request_interval=0.2):
         """
@@ -1254,14 +1313,17 @@ class KeggParser:
                     (bcolors.OKGREEN + self._base_uri + bcolors.ENDC))
         nb_endpoints = 0
         start = timer()
-        
+        self._output_dp = output_dp
         # Make sure triples are unique
-        output_fd = SetWriter(join(output_dp, self.filename))
+        
         for index, target_db in enumerate(self._kegg_dbs_select):
             for source_db in self._kegg_dbs_select[index+1:]:
                 # Retrieve edges for source, target db pair
+                
                 link_uri = f'{self._base_uri}/{target_db}/{source_db}'
-                self.__parse_uri_triples(link_uri, output_fd)
+                writer = self.__parse_uri_triples(link_uri)
+                if writer is not None:
+                    writer.close()
                 nb_endpoints += 1
                     
                 if nb_endpoints % 5 == 0:
@@ -1272,14 +1334,13 @@ class KeggParser:
                 #Sleep between requests 
                 time.sleep(request_interval)
         
-        organisms = map(lambda x: x.kegg_organism, VALID_SPECIES)
-        for organism in organisms:
-            if organism == 'hsa':
-                continue
-            self._kegg_abv_names[organism] = organism.upper()
-            for db in ['brite', 'module', 'ontology', 'pathway', 'enzyme']:
+        organisms = list(map(lambda x: x.kegg_organism, VALID_SPECIES))
+    
+        for db in self._kegg_dbs_select:
+            output_fd  = None
+            for organism in organisms:
                 link_uri = f'{self._base_uri}/{organism}/{db}'
-                self.__parse_uri_triples(link_uri, output_fd)
+                output_fd = self.__parse_uri_triples(link_uri, output_fd)
                 nb_endpoints += 1
 
                 if nb_endpoints % 5 == 0:
@@ -1288,7 +1349,10 @@ class KeggParser:
                     print("\r" + msg, end="", flush=True)
                 #Sleep between requests 
                 time.sleep(request_interval)
-        output_fd.close()
+            if output_fd is not None:
+                output_fd.close()
+                output_fd = None
+        
         print(done_sym + " Took %1.2f Seconds." % (timer() - start), flush=True)
 
 
@@ -1516,7 +1580,7 @@ class ReactomeParser:
                     (bcolors.OKGREEN + source_dp+'/reactome_*' + bcolors.ENDC))
         start = timer()
         nb_entries = 0
-
+        
         self.__parse_ppi(
             join(source_dp, "reactome_ppi.txt"),
             join(output_dp, "reactome_ppi.txt")
@@ -1574,7 +1638,8 @@ class CTDParser:
             "ctd_disease_biological_process.txt",
             "ctd_disease_cellular_component.txt",
             "ctd_disease_molecular_function.txt",
-            "ctd_drug_phenotype.txt"
+            "ctd_drug_phenotype.txt",
+            "ctd_drug_diseases.txt"
         ]
 
     @property
@@ -1680,7 +1745,7 @@ class CTDParser:
         """
         Parse ctd chemical gene interactions
 
-        <drugbank_id> <action_type> <uniprot_id> <pmids>
+        <drugbank_id> <action_type> <uniprot_id> <data_status> <pmids> 
 
         ***NOTE***
         drug, protein pairs may have incompatible actions present
@@ -1726,21 +1791,21 @@ class CTDParser:
                             prot_ids = self._gene_id_map[prev_gene_id]
                             for drug_id in drug_ids:
                                 for prot_id in prot_ids:
-                                    output_fd.write(f'{drug_id}\tAFFECTS_{process}\t{prot_id}\t{pubmed_refs}\n')
+                                    output_fd.write(f'{drug_id}\tAFFECTS_{process}\t{prot_id}\tCURATED\t{pubmed_refs}\n')
                         if 'INCREASES' in effects and 'DECREASES' not in effects:
                             pubmed_refs = ','.join(effects['INCREASES'])
                             drug_ids = self._chem_id_map[prev_chem_id]
                             prot_ids = self._gene_id_map[prev_gene_id]
                             for drug_id in drug_ids:
                                 for prot_id in prot_ids:
-                                    output_fd.write(f'{drug_id}\tINCREASES_{process}\t{prot_id}\t{pubmed_refs}\n')
+                                    output_fd.write(f'{drug_id}\tINCREASES_{process}\t{prot_id}\tCURATED\t{pubmed_refs}\n')
                         elif 'DECREASES' in effects and 'INCREASES' not in effects:
                             pubmed_refs = ','.join(effects['DECREASES'])
                             drug_ids = self._chem_id_map[prev_chem_id]
                             prot_ids = self._gene_id_map[prev_gene_id]
                             for drug_id in drug_ids:
                                 for prot_id in prot_ids:
-                                    output_fd.write(f'{drug_id}\tDECREASES_{process}\t{prot_id}\t{pubmed_refs}\n')
+                                    output_fd.write(f'{drug_id}\tDECREASES_{process}\t{prot_id}\tCURATED\t{pubmed_refs}\n')
                         elif 'INCREASES' in effects and 'DECREASES'in effects:
                             nb_inconsistent += 1
 
@@ -1752,8 +1817,6 @@ class CTDParser:
                 organism = parts[6]
                 actions = parts[9].upper().split('|')
                 pubmed_refs = ','.join(parts[10].split('|'))
-                if 'Homo sapiens' not in organism:
-                    continue
                 if chem_id in self._chem_id_map and gene_id in self._gene_id_map:
                     for action in actions:
                         effect, process = action.split('^')
@@ -1774,7 +1837,7 @@ class CTDParser:
         """
         Parse ctd gene disease associations
 
-        <uniprot_id> ASSOCIATED_DISEASE <omim_id> <pmids>
+        <uniprot_id> ASSOCIATED_DISEASE <omim_id> <data_status> <pmids>
 
         Parameters:
         -----------
@@ -1799,7 +1862,11 @@ class CTDParser:
         nb_entries = 0
         start = timer()
         output_fd = SetWriter(output_fp)
-
+        evidence_types = [
+            'marker/mechanism',
+            'marker/mechanism|therapeutic',
+            'therapeutic'
+        ]
         with gzip.open(source_fp, 'rt') as source_fd:
             for line in source_fd:
                 if line.startswith('#'):
@@ -1808,7 +1875,11 @@ class CTDParser:
                 # Check disease has omim id
                 # disease has direct evidence
                 # gene maps to protein
-                if len(parts[4].strip()) > 0 and parts[1] in self._gene_id_map:
+                
+                if parts[1] in self._gene_id_map:
+                    data_status = 'INFERRED'
+                    if len(parts[4].strip()) > 0 and parts[4].strip() in evidence_types:
+                        data_status = 'CURATED'
                     if 'OMIM' in parts[3]:
                         disease_ids = map(lambda x: x[5:], filter(lambda x: x.startswith('OMIM'), parts[3].split('|')))
                     elif len(parts[7].strip()) > 0:
@@ -1828,9 +1899,9 @@ class CTDParser:
                         disease_name_map[disease_id] = disease_name
                         for prot_id in self._gene_id_map[parts[1]]:
                             if has_refs:
-                                output_fd.write(f'{prot_id}\tASSOCIATED_DISEASE\t{disease_id}\t{pubmed_refs}\n')
+                                output_fd.write(f'{prot_id}\tASSOCIATED_DISEASE\t{disease_id}\t{data_status}\t{pubmed_refs}\n')
                             else:
-                                output_fd.write(f'{prot_id}\tASSOCIATED_DISEASE\t{disease_id}\n')
+                                output_fd.write(f'{prot_id}\tASSOCIATED_DISEASE\t{disease_id}\t{data_status}\n')
                     if nb_entries % 5 == 0:
                         speed = nb_entries / (timer() - start)
                         msg = prc_sym + "Processed (%d) entries.  Speed: (%1.5f) entries/second" % (nb_entries, speed)
@@ -1844,7 +1915,7 @@ class CTDParser:
         """
         Parse ctd chemical disease associations
 
-        <drugbank_id> ASSOCIATED_DISEASE <omim_id> <pmids>
+        <drugbank_id> ASSOCIATED_DISEASE <omim_id> <data_status> <pmids>
 
         Parameters:
         -----------
@@ -1870,6 +1941,11 @@ class CTDParser:
         start = timer()
         nb_entries = 0
 
+        evidence_types = [
+            'marker/mechanism',
+            'marker/mechanism|therapeutic',
+            'therapeutic'
+        ]
         with gzip.open(source_fp, 'rt') as source_fd:
             for line in source_fd:
                 if line.startswith('#'):
@@ -1879,7 +1955,10 @@ class CTDParser:
                 # Check disese maps to OMIM
                 # there is direct evidence
                 # the chemical maps to a drug
-                if len(parts[5].strip()) > 0 and 'OMIM' in parts[4] and parts[1].strip() in self._chem_id_map:
+                if 'OMIM' in parts[4] and parts[1].strip() in self._chem_id_map:
+                    data_status='INFERRED'
+                    if len(parts[5].strip()) > 0 and parts[5].strip() in evidence_types:
+                        data_status = 'CURATED'
                     if 'OMIM' in parts[4]:
                         disease_ids = map(lambda x: x[5:], filter(lambda x: x.startswith('OMIM'), parts[3].split('|')))
                     elif len(parts[8].strip()) > 0:
@@ -1901,9 +1980,9 @@ class CTDParser:
                         disease_name_map[disease_id] = disease_name
                         for drug_id in self._chem_id_map[parts[1].strip()]:
                             if has_refs:
-                                output_fd.write(f'{drug_id}\tASSOCIATED_DISEASE\t{disease_id}\t{pubmed_refs}\n')
+                                output_fd.write(f'{drug_id}\tASSOCIATED_DISEASE\t{disease_id}\t{data_status}\t{pubmed_refs}\n')
                             else:
-                                output_fd.write(f'{drug_id}\tASSOCIATED_DISEASE\t{disease_id}\n')
+                                output_fd.write(f'{drug_id}\tASSOCIATED_DISEASE\t{disease_id}\t{data_status}\n')
 
                     if nb_entries % 5 == 0:
                         speed = nb_entries / (timer() - start)
@@ -1918,9 +1997,9 @@ class CTDParser:
         """
         Parse ctd chemical disease associations
 
-        <disease_id> ASSOCIATED_PATHWAY <kegg_id>
+        <disease_id> ASSOCIATED_PATHWAY <kegg_id> <data_status>
 
-        <disease_id> ASSOCIATED_PATHWAY <reactome_id>
+        <disease_id> ASSOCIATED_PATHWAY <reactome_id> <data_status>
 
         Parameters:
         -----------
@@ -1966,10 +2045,10 @@ class CTDParser:
 
                     if pathway.startswith('KEGG'):
                         pathway = pathway[5:]
-                        kegg_fd.write(f'{disease_id}\tASSOCIATED_PATHWAY\t{pathway}\n')
+                        kegg_fd.write(f'{disease_id}\tASSOCIATED_PATHWAY\t{pathway}\tINFERRED\n')
                     elif pathway.startswith('REACT'):
                         pathway = pathway[6:]
-                        reactome_fd.write(f'{disease_id}\tASSOCIATED_PATHWAY\t{pathway}\n')
+                        reactome_fd.write(f'{disease_id}\tASSOCIATED_PATHWAY\t{pathway}\tINFERRED\n')
 
                     if nb_entries % 5 == 0:
                         speed = nb_entries / (timer() - start)
@@ -1986,9 +2065,9 @@ class CTDParser:
         """
         Parse ctd chemical pathway associations
 
-        <drugbank_id> ASSOCIATED_PATHWAY <kegg_id>
+        <drugbank_id> ASSOCIATED_PATHWAY <kegg_id> <data_status>
 
-        <drugbank_id> ASSOCIATED_PATHWAY <reactome_id>
+        <drugbank_id> ASSOCIATED_PATHWAY <reactome_id> <data_status>
 
         Parameters:
         -----------
@@ -2024,10 +2103,10 @@ class CTDParser:
                     for drug_id in self._chem_id_map[chem_id]:
                         if pathway.startswith('KEGG'):
                             pathway = pathway[5:]
-                            kegg_fd.write(f'{drug_id}\tASSOCIATED_PATHWAY\t{pathway}\n')
+                            kegg_fd.write(f'{drug_id}\tASSOCIATED_PATHWAY\t{pathway}\tENRICHED\n')
                         elif pathway.startswith('REACT'):
                             pathway = pathway[6:]
-                            reactome_fd.write(f'{drug_id}\tASSOCIATED_PATHWAY\t{pathway}\n')
+                            reactome_fd.write(f'{drug_id}\tASSOCIATED_PATHWAY\t{pathway}\tENRICHED\n')
 
                     if nb_entries % 5 == 0:
                         speed = nb_entries / (timer() - start)
@@ -2043,9 +2122,9 @@ class CTDParser:
         """
         Parse ctd gene pathway associations
 
-        <uniprot_id> ASSOCIATED_PATHWAY <kegg_id>
+        <uniprot_id> ASSOCIATED_PATHWAY <kegg_id> <data_status>
 
-        <uniprot_id> ASSOCIATED_PATHWAY <reactome_id>
+        <uniprot_id> ASSOCIATED_PATHWAY <reactome_id> <data_status>
 
         Parameters:
         -----------
@@ -2081,10 +2160,10 @@ class CTDParser:
                     for prot_id in self._gene_id_map[gene_id]:
                         if pathway.startswith('KEGG'):
                             pathway = pathway[5:]
-                            kegg_fd.write(f'{prot_id}\tASSOCIATED_PATHWAY\t{pathway}\n')
+                            kegg_fd.write(f'{prot_id}\tASSOCIATED_PATHWAY\t{pathway}\tINFERRED\n')
                         elif pathway.startswith('REACT'):
                             pathway = pathway[6:]
-                            reactome_fd.write(f'{prot_id}\tASSOCIATED_PATHWAY\t{pathway}\n')
+                            reactome_fd.write(f'{prot_id}\tASSOCIATED_PATHWAY\t{pathway}\tINFERRED\n')
 
                     if nb_entries % 5 == 0:
                         speed = nb_entries / (timer() - start)
@@ -2100,7 +2179,7 @@ class CTDParser:
         """
         Parse ctd disease biological process associations
 
-        <disease_id> BIOLOGICAL_PROCESS <go_id>
+        <disease_id> BIOLOGICAL_PROCESS <go_id> <data_status>
 
         Parameters:
         -----------
@@ -2130,7 +2209,7 @@ class CTDParser:
                     nb_entries += 1
                     disease_id = disease_id[5:]
                     disease_name_map[disease_id] = sanatize_text(parts[2])
-                    output_fd.write(f'{disease_id}\tBIOLOGICAL_PROCESS\t{go_id}\n')
+                    output_fd.write(f'{disease_id}\tBIOLOGICAL_PROCESS\t{go_id}\tINFERRED\n')
 
                     if nb_entries % 5 == 0:
                         speed = nb_entries / (timer() - start)
@@ -2146,7 +2225,7 @@ class CTDParser:
         """
         Parse ctd disease biological process associations
 
-        <disease_id> CELLULAR_COMPONENT <go_id>
+        <disease_id> CELLULAR_COMPONENT <go_id> <data_status>
 
         Parameters:
         -----------
@@ -2176,7 +2255,7 @@ class CTDParser:
                     nb_entries += 1
                     disease_id = disease_id[5:]
                     disease_name_map[disease_id] = sanatize_text(parts[2])
-                    output_fd.write(f'{disease_id}\tCELLULAR_COMPONENT\t{go_id}\n')
+                    output_fd.write(f'{disease_id}\tCELLULAR_COMPONENT\t{go_id}\tINFERRED\n')
 
                     if nb_entries % 5 == 0:
                         speed = nb_entries / (timer() - start)
@@ -2192,7 +2271,7 @@ class CTDParser:
         """
         Parse ctd disease biological process associations
 
-        <disease_id> MOLECULAR_FUNCTION <go_id>
+        <disease_id> MOLECULAR_FUNCTION <go_id> <data_status>
 
         Parameters:
         -----------
@@ -2222,7 +2301,7 @@ class CTDParser:
                     nb_entries += 1
                     disease_id = disease_id[5:]
                     disease_name_map[disease_id] = sanatize_text(parts[2])
-                    output_fd.write(f'{disease_id}\tMOLECULAR_FUNCTION\t{go_id}\n')
+                    output_fd.write(f'{disease_id}\tMOLECULAR_FUNCTION\t{go_id}\tINFERRED\n')
 
                     if nb_entries % 5 == 0:
                         speed = nb_entries / (timer() - start)
@@ -2238,7 +2317,7 @@ class CTDParser:
         """
         Parse ctd chemical disease associations
 
-        <drugbank_id> tDRUG_PHENOTYPE <go_id> <action> <pmids>
+        <drugbank_id> tDRUG_PHENOTYPE <go_id> <action> <data_status> <pmids>
 
         Parameters:
         -----------
@@ -2285,9 +2364,9 @@ class CTDParser:
                     for prot_id in self._chem_id_map[chem_id]:
                         for action in actions:
                             if has_refs:
-                                output_fd.write(f'{prot_id}\tDRUG_PHENOTYPE\t{go_id}\t{action}\t{pubmed_refs}\n')
+                                output_fd.write(f'{prot_id}\tDRUG_PHENOTYPE\t{go_id}\t{action}\tCURATED\t{pubmed_refs}\n')
                             else:
-                                output_fd.write(f'{prot_id}\tDRUG_PHENOTYPE\t{go_id}\t{action}\n')
+                                output_fd.write(f'{prot_id}\tDRUG_PHENOTYPE\t{go_id}\t{action}\tCURATED\n')
 
                     if nb_entries % 5 == 0:
                         speed = nb_entries / (timer() - start)
@@ -2354,6 +2433,13 @@ class CTDParser:
         )
         nb_entries += 1
 
+        self.__parse_chemical_disease(
+            join(source_dp, "CTD_chemicals_diseases.tsv.gz"),
+            join(output_dp, "ctd_drug_diseases.txt"),
+            disease_name_map
+        )
+        nb_entries += 1
+        
         self.__parse_gene_pathway(
             join(source_dp, "CTD_genes_pathways.tsv.gz"),
             join(output_dp, "ctd_protein_kegg_pathway_association.txt"),
