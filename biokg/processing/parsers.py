@@ -887,6 +887,7 @@ class DrugBankParser:
                 else:
                     se_name_list = [sanatize_se_txt(se_name)]
 
+                
                 if has_word_activities:
                     se_name_list = [txt+"_activities" for txt in se_name_list]
 
@@ -894,6 +895,13 @@ class DrugBankParser:
                     if side_effect in DDI_SE_NAME_MAP:
                         side_effect = DDI_SE_NAME_MAP[side_effect]
                     side_effects.append(f'{mode_name}_{side_effect}')
+
+                # decrease_excretion_rate
+                if pattern_index == 5:
+                    side_effects.append('decrease_excretion_rate')
+                elif pattern_index == 6:
+                    side_effects.append('increase_excretion_rate')
+
                 break
         return side_effects
 
