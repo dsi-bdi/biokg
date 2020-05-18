@@ -177,6 +177,7 @@ class UniProtTxtParser:
         """
         self.filepath = ""
         self.output_dp = ""
+        self._interpro_map = {}
 
     def __parse_txt_entry(self, entry):
         """ Process a Uniprot txt entry
@@ -318,8 +319,14 @@ class UniProtTxtParser:
                 interpro_lines = links_lines_dict["InterPro"]
                 for line in interpro_lines:
                     interpro_code = line.split(";")[1].strip()
-                    entry_facts.append([entry_code, "SEQ_ANNOTATION", interpro_code])
+                    if interpro_code in self._interpro_map:
+                        entry_facts.append([entry_code, self._interpro_map[interpro_code], interpro_code])
 
+            if 'PROSITE' in links_lines_dict:
+                prosite_lines = links_lines_dict["PROSITE"]
+                for line in prosite_lines:
+                    prosite_code = line.split(";")[1].strip()
+                    entry_facts.append([entry_code, "PS_SEQ_ANNOTATION", prosite_code])
         # ------------------------------------------------------------------------
         # Processing OC prefix section
         # ------------------------------------------------------------------------
@@ -353,7 +360,7 @@ class UniProtTxtParser:
         else:
             return [], [], []
 
-    def parse(self, filepath, output_dp):
+    def parse(self, filepath, interpro_fp, output_dp):
         """ Parse a Uniprot textual data file and output findings to a set of files in a specified directory
 
         Parameters
@@ -375,6 +382,12 @@ class UniProtTxtParser:
         nb_facts = 0
         nb_metadata = 0
         nb_ppi = 0
+
+        with open(interpro_fp, 'r') as fd:
+            next(fd)
+            for line in fd:
+                interpro_id, interpro_type = line.strip().split('\t')[:2]
+                self._interpro_map[interpro_id] = interpro_type.upper()
         with gzip.open(filepath, 'rt') as fd:
             current_entry = []
             print_section_header("Parsing Uniprot file (%s)" % (bcolors.OKGREEN + filepath + bcolors.ENDC))
@@ -960,11 +973,12 @@ class DrugBankParser:
             writer for statements
         """
         code = code_element.get('code')
-        output.write(f'{drug_id}\tDRUG_ATC_C1\tATC:{code[0:1]}\n')
-        output.write(f'{drug_id}\tDRUG_ATC_C2\tATC:{code[0:3]}\n')
-        output.write(f'{drug_id}\tDRUG_ATC_C3\tATC:{code[0:4]}\n')
-        output.write(f'{drug_id}\tDRUG_ATC_C4\tATC:{code[0:5]}\n')
-        output.write(f'{drug_id}\tDRUG_ATC_C5\tATC:{code}\n')
+        
+        output.write(f'{drug_id}\tDRUG_ATC\tATC:{code[0:1]}\n')
+        output.write(f'{drug_id}\tDRUG_ATC\tATC:{code[0:3]}\n')
+        output.write(f'{drug_id}\tDRUG_ATC\tATC:{code[0:4]}\n')
+        output.write(f'{drug_id}\tDRUG_ATC\tATC:{code[0:5]}\n')
+        output.write(f'{drug_id}\tDRUG_ATC\tATC:{code}\n')
 
     def __parse_pathway(self, pathway_element, drug_id, output):
         """
@@ -1161,7 +1175,10 @@ class KeggParser:
             'gene_pathway.txt',
             'network_disease.txt',
             'network_drug.txt',
-            'network_pathway.txt'
+            'network_pathway.txt',
+            'disease_meta.txt',
+            'disease_genes.txt',
+            'disease_links.txt'
         ]
         # 'kegg_links.txt'
         
@@ -1304,12 +1321,122 @@ class KeggParser:
             output_fd.flush()
             return output_fd
 
-    def parse_kegg(self, output_dp, request_interval=0.2):
+    def parse_disease_entry(self, entry_list, meta_writer, gene_writer, link_writer, scratch_writer):
+        entry = {}
+        current_section = None
+        for line in entry_list:
+            parts = line.strip().split(' ')
+            section = parts[0].strip()
+            #if section in ['ENTRY','NAME','SUPERGRP','CATEGORY','GENE','DB:LINKS']:
+            if section.isupper() and section.isalpha() or section == 'ENV_FACTOR':
+                current_section = section
+                entry[current_section] = []
+                #print(f'Adding {current_section}')
+                parts = parts[1:]
+
+            entry[current_section].append(' '.join(parts).strip())
+            #elif section.isupper() and section.isalpha()
+                
+
+        entry_head = entry['ENTRY'][0].split()
+        disease_id = entry_head[0]
+        name = entry['NAME'][0]
+        category = entry['CATEGORY'][0]
+        meta_writer.write(f'{disease_id}\tNAME\t{name}\n')
+        meta_writer.write(f'{disease_id}\tCATEGORY\t{category}\n')
+        if 'SUPERGRP' in entry:
+            supergrp_id = entry['SUPERGRP'][0].split('[')[1][:-1]
+            meta_writer.write(f'{disease_id}\tSUPERGRP\t{supergrp_id}\n')
+
+        
+        
+        if 'GENE' in entry:
+            for gene_link in entry['GENE']:
+                #if len(gene_link.strip()) > 0:
+                #    scratch_writer.write(f'{disease_id}\t{gene_link}\n')
+                gene_link = gene_link.strip()
+                if len(gene_link) == 0 or '[' not in gene_link:
+                    continue
+                
+
+                #alt_start = gene_link[1:].find('(')
+                
+                # get index of last parenthesis
+                alt_end = gene_link.rfind(')')
+                alt_start = -1
+                r_par_count = 1
+                for i in range(alt_end-1, 1, -1):
+                    ch = gene_link[i]
+                    if ch == ')':
+                        r_par_count += 1
+                    elif ch == '(':
+                        r_par_count -= 1
+                    
+                    if r_par_count == 0:
+                        alt_start = i+1
+                        break
+
+                alterations = ['ASSOCIATED_WITH']
+                if alt_start > -1 and alt_end > -1:
+                    alt_str = gene_link[alt_start:alt_end]
+                    scratch_writer.write(f'{disease_id}\t{alt_str}\n')
+                    if alt_str == 'germline mutation / deletion':
+                        alerations = ['germline_mutation', 'germline_deletion']
+                    elif alt_str == 'high/low expression':
+                        alterations = ['high_expression', 'low_expression']
+                    elif alt_str == 'low/high expression':
+                        alterations = ['low_expression', 'high_expression']
+                    elif alt_str == 'CTG/CAG repeat expansion':
+                        alterations = ['CTG_CAG_repeat_expansion']
+                    elif alt_str == 'FH) (inactivation':
+                        alterations = ['inactivation']
+                    else:
+                        for match in re.findall('\([^\)]+\)', alt_str):
+                            alt_str = alt_str.replace(match, '')
+                        alterations = re.split(',| or |/|\)|\(', alt_str)
+
+                gene_start = gene_link.find('[')
+                gene_end = gene_link.find(']')
+                genes = gene_link[gene_start+1:gene_end]
+
+
+                parts = gene_link.split(' ')
+                gene_ids = []
+                found_gene = False
+                gene_parts = genes.split()
+                for part in gene_parts:
+                    if part.startswith('HSA:'):
+                        found_gene = True
+                        gene_ids.append(part[4:])
+                    else:
+                        gene_ids.append(part)
+
+                if not found_gene:
+                    raise Exception('GENE not found')
+                for alt in alterations:
+                    if len(alt.strip()) == 0:
+                        continue
+                    for gene in gene_ids:
+                        gene_writer.write(f'{disease_id}\t{sanatize_text(alt.strip())}\thsa:{gene}\n')
+            
+        if 'DBLINKS' in entry:
+            for link in entry['DBLINKS']:
+                link_type, dest_id = link.split(':')
+                link_writer.write(f'{disease_id}\t{sanatize_text(link_type)}\t{dest_id.strip()}\n')
+
+        meta_writer.flush()
+        gene_writer.flush()
+        link_writer.flush()
+        scratch_writer.flush()
+        
+    def parse_kegg(self, diseases_fp, output_dp, request_interval=0.2):
         """
         Parse KEGG link triples
 
         Parameters
         ----------
+        diseases_fp : str
+            path to the diseases source filw
         output_dp : str
             path of the output directory
 
@@ -1324,6 +1451,31 @@ class KeggParser:
         self._output_dp = output_dp
         # Make sure triples are unique
         
+        current_entry = []
+        meta_writer = SetWriter(join(output_dp, 'disease_meta.txt'))
+        genes_writer = SetWriter(join(output_dp, 'disease_genes.txt'))
+        link_writer = SetWriter(join(output_dp, 'disease_links.txt'))
+        scratch_writer = SetWriter(join(output_dp, 'scratch.txt'))
+        with open(diseases_fp, 'r') as diseases_fd:
+            for line in diseases_fd:
+                if line.startswith('///'):
+                    self.parse_disease_entry(
+                        current_entry,
+                        meta_writer,
+                        genes_writer,
+                        link_writer,
+                        scratch_writer
+                    )
+                    current_entry = []
+                else:
+                    current_entry.append(line)
+        
+        meta_writer.close()
+        genes_writer.close()
+        link_writer.close()
+        scratch_writer.close()
+        
+
         for index, target_db in enumerate(self._kegg_dbs_select):
             for source_db in self._kegg_dbs_select[index+1:]:
                 # Retrieve edges for source, target db pair
@@ -1875,6 +2027,8 @@ class CTDParser:
             'marker/mechanism|therapeutic',
             'therapeutic'
         ]
+        current_gene = None
+        gene_count = 0
         with gzip.open(source_fp, 'rt') as source_fd:
             for line in source_fd:
                 if line.startswith('#'):
@@ -1883,15 +2037,21 @@ class CTDParser:
                 # Check disease has omim id
                 # disease has direct evidence
                 # gene maps to protein
-                
+                if parts[1] != current_gene:
+                    output_fd.flush()
+                    current_gene = parts[1]
+                    # gene_count += 1
+                    # if gene_count % 100 == 0:
+                    #     output_fd.flush()
                 if parts[1] in self._gene_id_map:
                     data_status = 'INFERRED'
                     if len(parts[4].strip()) > 0 and parts[4].strip() in evidence_types:
                         data_status = 'CURATED'
-                    if 'OMIM' in parts[3]:
-                        disease_ids = map(lambda x: x[5:], filter(lambda x: x.startswith('OMIM'), parts[3].split('|')))
-                    elif len(parts[7].strip()) > 0:
-                        disease_ids = parts[7].split('|')
+                    
+                    if 'MESH' in parts[3]:
+                        disease_ids = map(lambda x: x[5:], filter(lambda x: x.startswith('MESH'), parts[3].split('|')))
+                    #elif len(parts[7].strip()) > 0:
+                    #    disease_ids = parts[7].split('|')
                     else:
                         continue
 
@@ -1902,6 +2062,9 @@ class CTDParser:
                     if len(parts) >= 9 and len(parts[8].strip()) > 0:
                         pubmed_refs = ','.join(parts[8].strip().split('|'))
                         has_refs = True
+
+                    if data_status != 'CURATED':
+                        continue
 
                     for disease_id in disease_ids:
                         disease_name_map[disease_id] = disease_name
@@ -1954,6 +2117,8 @@ class CTDParser:
             'marker/mechanism|therapeutic',
             'therapeutic'
         ]
+        current_chem = None
+        chem_count = 0
         with gzip.open(source_fp, 'rt') as source_fd:
             for line in source_fd:
                 if line.startswith('#'):
@@ -1963,21 +2128,30 @@ class CTDParser:
                 # Check disese maps to OMIM
                 # there is direct evidence
                 # the chemical maps to a drug
-                if 'OMIM' in parts[4] and parts[1].strip() in self._chem_id_map:
+                if parts[1] != current_chem:
+                    chem_count += 1
+                    current_chem = parts[1]
+                    output_fd.flush()
+                    # if chem_count % 100 == 0:
+                    #     output_fd.flush()
+                    
+                if 'MESH' in parts[4] and parts[1].strip() in self._chem_id_map:
                     data_status='INFERRED'
                     if len(parts[5].strip()) > 0 and parts[5].strip() in evidence_types:
                         data_status = 'CURATED'
-                    if 'OMIM' in parts[4]:
-                        disease_ids = map(lambda x: x[5:], filter(lambda x: x.startswith('OMIM'), parts[3].split('|')))
-                    elif len(parts[8].strip()) > 0:
-                        disease_ids = parts[8].split('|')
+                    if 'MESH' in parts[4]:
+                        disease_ids = map(lambda x: x[5:], filter(lambda x: x.startswith('MESH'), parts[3].split('|')))
+                    #elif len(parts[8].strip()) > 0:
+                    #    disease_ids = parts[8].split('|')
                     else:
                         continue
                     nb_entries += 1
-                    disease_ids = map(lambda x: x[5:], filter(lambda x: x.startswith('OMIM'), parts[4].split('|')))
+                    disease_ids = map(lambda x: x[5:], filter(lambda x: x.startswith('MESH'), parts[4].split('|')))
                     disease_ids = parts[8].split('|')
                     disease_name = sanatize_text(parts[3])
 
+                    if data_status != 'CURATED':
+                        continue
                     pubmed_refs = ''
                     has_refs = False
                     if len(parts) >= 10 and len(parts[9].strip()) > 0:
@@ -2046,7 +2220,7 @@ class CTDParser:
                 disease_name = sanatize_text(parts[0])
                 disease_id = parts[1]
                 pathway = parts[3]
-                if disease_id.startswith('OMIM'):
+                if disease_id.startswith('MESH'):
                     nb_entries += 1
                     disease_id = disease_id[5:]
                     disease_name_map[disease_id] = disease_name
@@ -2852,5 +3026,114 @@ class SiderParser():
             join(output_dp, 'sider_effects_meta.txt')
         )
         nb_entries += 1
+
+        print(done_sym + "Processed (%d) files. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
+
+
+class MESHParser():
+    def __init__(self):
+        """
+        Initialize Sider Parser
+        """
+        self._filenames = [
+            'mesh_disease_names.txt',
+            'mesh_disease_tree.txt'
+        ]
+
+    @property
+    def filenames(self):
+        """
+        Get Sider filenames
+
+        Returns
+        -------
+        filename : str
+            the names of the Sider output files
+        """
+        return self._filenames
+
+    def parse_mesh_entry(self, entry_list, name_writer, tree_writer):
+        """
+        Parse the Sider side effects file.
+
+        Side effects are output in the format
+
+        <sider_id> SIDE_EFFECT <effect_id>
+
+        Side effect names are output in the format
+
+        <effect_id> NAME <effect_name>
+
+        Parameters:
+        -----------
+        source_fp : str
+            The path to the Sider indications file
+
+        side_effects_fp : str
+            The path to the side effects output file
+
+        side_effects_meta_fp : str
+            The path to the side effects meta output file
+        """
+
+        entry = {}
+        for line in entry_list:
+            parts = line.split('=')
+            if len(parts) > 1:
+                section = parts[0].strip()
+                if section not in entry:
+                    entry[section] = []
+                entry[section].append(parts[1].strip())
+
+        entry_id = entry['UI'][0]
+        entry_name = entry['MH'][0]
+        
+        
+        is_disease = False
+        if 'MN' in entry:
+            for tree in entry['MN']:
+                if tree.startswith('C'):
+                    is_disease = True
+                    branches = tree.split('.')
+                    for i in range(len(branches)):
+                        tree_writer.write(f'{entry_id}\tDISEASE_SUPERGRP\t{".".join(branches[:i+1])}\n')
+
+        if is_disease:
+            name_writer.write(f'{entry_id}\tNAME\t{entry_name}\n')
+        name_writer.flush()
+        tree_writer.flush()
+
+    def parse_mesh(self, source_fp, output_dp):
+        """
+        Parse Mesg files
+
+        Parameters
+        ----------
+        source_fp : str
+            The path to the source file
+        output_dp : str
+            The path to the output directory
+        """
+        print_section_header(
+            "Parsing MESH file (%s)" %
+            (bcolors.OKGREEN + source_fp + bcolors.ENDC)
+        )
+        start = timer()
+        nb_entries = 0
+        current_entry = []
+
+        name_writer = SetWriter(join(output_dp, 'mesh_disease_names.txt'))
+        tree_writer = SetWriter(join(output_dp, 'mesh_disease_tree.txt'))
+        with open(source_fp, 'r') as source_fd:
+            for line in source_fd:
+                if len(line.strip()) == 0:
+                    nb_entries += 1
+                    self.parse_mesh_entry(current_entry, name_writer, tree_writer)
+                    current_entry = []
+                else:
+                    current_entry.append(line.strip())
+
+        name_writer.close()
+        tree_writer.close()
 
         print(done_sym + "Processed (%d) files. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)

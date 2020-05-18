@@ -65,18 +65,25 @@ def main():
         db_user = sys.argv[1]
         db_pass = sys.argv[2]
         download_drugbank_data(sources_dp=sources_dp, srcs_cp=sources_urls, username=db_user, password=db_pass)
+
+    # download kegg source data
+    download_kegg_data(sources_dp=sources_dp, srcs_cp=sources_urls)
+
+    # download mesh source data
+    download_mesh_data(sources_dp=sources_dp, srcs_cp=sources_urls)
     # ----------------------------------------------------------------------
     # processing uniprot entries file
     uniprot_parser = UniProtTxtParser()
     uniprot_dp = join(preprocessed_dp, 'uniprot')
     mkdir(uniprot_dp) if not isdir(uniprot_dp) else None
     uniprot_entries_fp = join(sources_dp, "swissprot_entries.txt.gz")
+    interpro_entries_fp = join(sources_dp, "interpro_entries.txt")
     uniprot_output_files = ["uniprot_facts.txt", "uniprot_metadata.txt", "uniprot_ppi.txt"]
     uniprot_output_fps = [join(uniprot_dp, fn) for fn in uniprot_output_files]
     invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in uniprot_output_fps]))
 
     if invalid_md5:
-        uniprot_parser.parse(uniprot_entries_fp, uniprot_dp)
+        uniprot_parser.parse(uniprot_entries_fp, interpro_entries_fp, uniprot_dp)
         for ofp in uniprot_output_fps:
             export_file_md5(ofp)
     else:
@@ -125,14 +132,29 @@ def main():
         print(inf_sym + "DrugBank processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
 
     # ----------------------------------------------------------------------
+    # processing MESH
+    mesh_parser = MESHParser()
+    mesh_diseases_fp = join(sources_dp, 'mesh_diseases.txt')
+    mesh_dp = join(preprocessed_dp, 'mesh')
+    mkdir(mesh_dp) if not isdir(mesh_dp) else None
+    mesh_fps = [join(mesh_dp, fn) for fn in mesh_parser.filenames]
+    invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in mesh_fps]))
+    if invalid_md5:
+        mesh_parser.parse_mesh(mesh_diseases_fp, mesh_dp)
+        for ofp in mesh_fps:
+            export_file_md5(ofp)
+    else:
+        print(inf_sym + "MESH processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
+    # ----------------------------------------------------------------------
     # processing KEGG links
     kegg_parser = KeggParser()
+    kegg_diseases_fp = join(sources_dp, 'diseases.txt')
     kegg_dp = join(preprocessed_dp, 'kegg')
     mkdir(kegg_dp) if not isdir(kegg_dp) else None
     kegg_fps = [join(kegg_dp, fn) for fn in kegg_parser.filelist]
     invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in kegg_fps]))
     if invalid_md5:
-        kegg_parser.parse_kegg(kegg_dp)
+        kegg_parser.parse_kegg(kegg_diseases_fp, kegg_dp)
         for ofp in kegg_fps:
             export_file_md5(ofp)
     else:
