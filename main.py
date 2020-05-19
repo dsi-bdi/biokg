@@ -184,7 +184,7 @@ def main():
     invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in ctd_fps]))
 
     if invalid_md5:
-        ctd_parser.parse_ctd(sources_dp, ctd_dp)
+        ctd_parser.parse_ctd(sources_dp, join(uniprot_dp, 'uniprot_metadata.txt'), ctd_dp)
         for ofp in ctd_fps:
             export_file_md5(ofp)
     else:

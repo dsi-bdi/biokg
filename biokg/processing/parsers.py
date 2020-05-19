@@ -326,7 +326,7 @@ class UniProtTxtParser:
                 prosite_lines = links_lines_dict["PROSITE"]
                 for line in prosite_lines:
                     prosite_code = line.split(";")[1].strip()
-                    entry_facts.append([entry_code, "PS_SEQ_ANNOTATION", prosite_code])
+                    entry_facts.append([entry_code, "PS_SEQ_ANN", prosite_code])
         # ------------------------------------------------------------------------
         # Processing OC prefix section
         # ------------------------------------------------------------------------
@@ -1176,9 +1176,7 @@ class KeggParser:
             'network_disease.txt',
             'network_drug.txt',
             'network_pathway.txt',
-            'disease_meta.txt',
-            'disease_genes.txt',
-            'disease_links.txt'
+            'disease_meta.txt'
         ]
         # 'kegg_links.txt'
         
@@ -1321,13 +1319,13 @@ class KeggParser:
             output_fd.flush()
             return output_fd
 
-    def parse_disease_entry(self, entry_list, meta_writer, gene_writer, link_writer, scratch_writer):
+    def parse_disease_entry(self, entry_list, meta_writer):
         entry = {}
         current_section = None
         for line in entry_list:
             parts = line.strip().split(' ')
             section = parts[0].strip()
-            #if section in ['ENTRY','NAME','SUPERGRP','CATEGORY','GENE','DB:LINKS']:
+            #if section in ['ENTRY','NAME','SUPERGRP','CATEGORY','GENE','DBLINKS']:
             if section.isupper() and section.isalpha() or section == 'ENV_FACTOR':
                 current_section = section
                 entry[current_section] = []
@@ -1350,84 +1348,8 @@ class KeggParser:
 
         
         
-        if 'GENE' in entry:
-            for gene_link in entry['GENE']:
-                #if len(gene_link.strip()) > 0:
-                #    scratch_writer.write(f'{disease_id}\t{gene_link}\n')
-                gene_link = gene_link.strip()
-                if len(gene_link) == 0 or '[' not in gene_link:
-                    continue
-                
-
-                #alt_start = gene_link[1:].find('(')
-                
-                # get index of last parenthesis
-                alt_end = gene_link.rfind(')')
-                alt_start = -1
-                r_par_count = 1
-                for i in range(alt_end-1, 1, -1):
-                    ch = gene_link[i]
-                    if ch == ')':
-                        r_par_count += 1
-                    elif ch == '(':
-                        r_par_count -= 1
-                    
-                    if r_par_count == 0:
-                        alt_start = i+1
-                        break
-
-                alterations = ['ASSOCIATED_WITH']
-                if alt_start > -1 and alt_end > -1:
-                    alt_str = gene_link[alt_start:alt_end]
-                    scratch_writer.write(f'{disease_id}\t{alt_str}\n')
-                    if alt_str == 'germline mutation / deletion':
-                        alerations = ['germline_mutation', 'germline_deletion']
-                    elif alt_str == 'high/low expression':
-                        alterations = ['high_expression', 'low_expression']
-                    elif alt_str == 'low/high expression':
-                        alterations = ['low_expression', 'high_expression']
-                    elif alt_str == 'CTG/CAG repeat expansion':
-                        alterations = ['CTG_CAG_repeat_expansion']
-                    elif alt_str == 'FH) (inactivation':
-                        alterations = ['inactivation']
-                    else:
-                        for match in re.findall('\([^\)]+\)', alt_str):
-                            alt_str = alt_str.replace(match, '')
-                        alterations = re.split(',| or |/|\)|\(', alt_str)
-
-                gene_start = gene_link.find('[')
-                gene_end = gene_link.find(']')
-                genes = gene_link[gene_start+1:gene_end]
-
-
-                parts = gene_link.split(' ')
-                gene_ids = []
-                found_gene = False
-                gene_parts = genes.split()
-                for part in gene_parts:
-                    if part.startswith('HSA:'):
-                        found_gene = True
-                        gene_ids.append(part[4:])
-                    else:
-                        gene_ids.append(part)
-
-                if not found_gene:
-                    raise Exception('GENE not found')
-                for alt in alterations:
-                    if len(alt.strip()) == 0:
-                        continue
-                    for gene in gene_ids:
-                        gene_writer.write(f'{disease_id}\t{sanatize_text(alt.strip())}\thsa:{gene}\n')
-            
-        if 'DBLINKS' in entry:
-            for link in entry['DBLINKS']:
-                link_type, dest_id = link.split(':')
-                link_writer.write(f'{disease_id}\t{sanatize_text(link_type)}\t{dest_id.strip()}\n')
-
+        
         meta_writer.flush()
-        gene_writer.flush()
-        link_writer.flush()
-        scratch_writer.flush()
         
     def parse_kegg(self, diseases_fp, output_dp, request_interval=0.2):
         """
@@ -1453,27 +1375,18 @@ class KeggParser:
         
         current_entry = []
         meta_writer = SetWriter(join(output_dp, 'disease_meta.txt'))
-        genes_writer = SetWriter(join(output_dp, 'disease_genes.txt'))
-        link_writer = SetWriter(join(output_dp, 'disease_links.txt'))
-        scratch_writer = SetWriter(join(output_dp, 'scratch.txt'))
         with open(diseases_fp, 'r') as diseases_fd:
             for line in diseases_fd:
                 if line.startswith('///'):
                     self.parse_disease_entry(
                         current_entry,
-                        meta_writer,
-                        genes_writer,
-                        link_writer,
-                        scratch_writer
+                        meta_writer
                     )
                     current_entry = []
                 else:
                     current_entry.append(line)
         
         meta_writer.close()
-        genes_writer.close()
-        link_writer.close()
-        scratch_writer.close()
         
 
         for index, target_db in enumerate(self._kegg_dbs_select):
@@ -1790,7 +1703,6 @@ class CTDParser:
             "ctd_protein_disease_association.txt",
             "ctd_disease_kegg_pathway_association.txt",
             "ctd_disease_reactome_pathway_association.txt",
-            "ctd_disease_names.txt",
             "ctd_drug_kegg_pathway_association.txt",
             "ctd_drug_reactome_pathway_association.txt",
             "ctd_protein_kegg_pathway_association.txt",
@@ -1856,7 +1768,7 @@ class CTDParser:
         print(done_sym + "Processed (%d) entries. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
         return chem_id_map
 
-    def __parse_gene_id_map(self, gene_id_mapping_fp):
+    def __parse_gene_id_map(self, gene_id_mapping_fp, protein_set):
         """
         Parse ctd gene id to uniprot protein id mapping
 
@@ -1889,7 +1801,8 @@ class CTDParser:
                     prot_ids = parts[7].split('|')
                     valid_prot_ids = []
                     for prot_id in prot_ids:
-                        valid_prot_ids.append(prot_id)
+                        if prot_id in protein_set:
+                            valid_prot_ids.append(prot_id)
                     if len(valid_prot_ids) > 0:
                         gene_id_map[gene_id] = valid_prot_ids
 
@@ -1993,7 +1906,7 @@ class CTDParser:
         output_fd.close()
         print(done_sym + "Processed (%d) %d inconsistent actions found entries. Took %1.2f Seconds." % (nb_entries, nb_inconsistent, timer() - start), flush=True)
 
-    def __parse_gene_disease(self, source_fp, output_fp, disease_name_map):
+    def __parse_gene_disease(self, source_fp, output_fp):
         """
         Parse ctd gene disease associations
 
@@ -2006,14 +1919,6 @@ class CTDParser:
 
         output_fp: str
             The path to the output file
-
-        disease_name_map : dict
-            Dictionary mapping omim disease ids to disease name
-
-        Returns:
-        --------
-        disease_name_map : dict
-            Dictionary mapping omim disease ids to disease name
         """
         print_section_header(
             "Parsing CTD file (%s)" %
@@ -2067,7 +1972,6 @@ class CTDParser:
                         continue
 
                     for disease_id in disease_ids:
-                        disease_name_map[disease_id] = disease_name
                         for prot_id in self._gene_id_map[parts[1]]:
                             if has_refs:
                                 output_fd.write(f'{prot_id}\tASSOCIATED_DISEASE\t{disease_id}\t{data_status}\t{pubmed_refs}\n')
@@ -2080,9 +1984,8 @@ class CTDParser:
 
         output_fd.close()
         print(done_sym + "Processed (%d) entries. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
-        return disease_name_map
 
-    def __parse_chemical_disease(self, source_fp, output_fp, disease_name_map):
+    def __parse_chemical_disease(self, source_fp, output_fp):
         """
         Parse ctd chemical disease associations
 
@@ -2095,14 +1998,6 @@ class CTDParser:
 
         output_fp: str
             The path to the output file
-
-        disease_name_map : dict
-            Dictionary mapping omim disease ids to disease name
-
-        Returns:
-        --------
-        disease_name_map : dict
-            Dictionary mapping omim disease ids to disease name
         """
         output_fd = SetWriter(output_fp)
         print_section_header(
@@ -2159,7 +2054,6 @@ class CTDParser:
                         has_refs = True
 
                     for disease_id in disease_ids:
-                        disease_name_map[disease_id] = disease_name
                         for drug_id in self._chem_id_map[parts[1].strip()]:
                             if has_refs:
                                 output_fd.write(f'{drug_id}\tASSOCIATED_DISEASE\t{disease_id}\t{data_status}\t{pubmed_refs}\n')
@@ -2173,9 +2067,8 @@ class CTDParser:
 
         output_fd.close()
         print(done_sym + "Processed (%d) entries. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
-        return disease_name_map
 
-    def __parse_disease_pathway(self, source_fp, kegg_fp, reactome_fp, disease_name_map):
+    def __parse_disease_pathway(self, source_fp, kegg_fp, reactome_fp):
         """
         Parse ctd chemical disease associations
 
@@ -2193,14 +2086,6 @@ class CTDParser:
 
         reactome_fp: str
             The path to output reactome pathway associations
-
-        disease_name_map : dict
-            Dictionary mapping omim disease ids to disease name
-
-        Returns:
-        --------
-        disease_name_map : dict
-            Dictionary mapping omim disease ids to disease name
         """
         kegg_fd = SetWriter(kegg_fp)
         reactome_fd = SetWriter(reactome_fp)
@@ -2223,7 +2108,6 @@ class CTDParser:
                 if disease_id.startswith('MESH'):
                     nb_entries += 1
                     disease_id = disease_id[5:]
-                    disease_name_map[disease_id] = disease_name
 
                     if pathway.startswith('KEGG'):
                         pathway = pathway[5:]
@@ -2241,7 +2125,6 @@ class CTDParser:
         reactome_fd.close()
 
         print(done_sym + "Processed (%d) entries. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
-        return disease_name_map
 
     def __parse_chemical_pathway(self, source_fp, kegg_fp, reactome_fp):
         """
@@ -2357,11 +2240,11 @@ class CTDParser:
 
         print(done_sym + "Processed (%d) entries. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
 
-    def __parse_disease_bio_process(self, source_fp, output_fp, disease_name_map):
+    def __parse_disease_bio_process(self, source_fp, output_fp):
         """
         Parse ctd disease biological process associations
 
-        <disease_id> BIOLOGICAL_PROCESS <go_id> <data_status>
+        <disease_id> GO_BP <go_id> <data_status>
 
         Parameters:
         -----------
@@ -2387,11 +2270,10 @@ class CTDParser:
 
                 go_id = parts[1]
                 disease_id = parts[3]
-                if disease_id.startswith('OMIM'):
+                if disease_id.startswith('MESH'):
                     nb_entries += 1
                     disease_id = disease_id[5:]
-                    disease_name_map[disease_id] = sanatize_text(parts[2])
-                    output_fd.write(f'{disease_id}\tBIOLOGICAL_PROCESS\t{go_id}\tINFERRED\n')
+                    output_fd.write(f'{disease_id}\tGO_BP\t{go_id}\tINFERRED\n')
 
                     if nb_entries % 5 == 0:
                         speed = nb_entries / (timer() - start)
@@ -2401,13 +2283,12 @@ class CTDParser:
         output_fd.close()
 
         print(done_sym + "Processed (%d) entries. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
-        return disease_name_map
 
-    def __parse_disease_cellular_comp(self, source_fp, output_fp, disease_name_map):
+    def __parse_disease_cellular_comp(self, source_fp, output_fp):
         """
         Parse ctd disease biological process associations
 
-        <disease_id> CELLULAR_COMPONENT <go_id> <data_status>
+        <disease_id> GO_CC <go_id> <data_status>
 
         Parameters:
         -----------
@@ -2433,11 +2314,10 @@ class CTDParser:
 
                 go_id = parts[1]
                 disease_id = parts[3]
-                if disease_id.startswith('OMIM'):
+                if disease_id.startswith('MESH'):
                     nb_entries += 1
                     disease_id = disease_id[5:]
-                    disease_name_map[disease_id] = sanatize_text(parts[2])
-                    output_fd.write(f'{disease_id}\tCELLULAR_COMPONENT\t{go_id}\tINFERRED\n')
+                    output_fd.write(f'{disease_id}\tGO_CC\t{go_id}\tINFERRED\n')
 
                     if nb_entries % 5 == 0:
                         speed = nb_entries / (timer() - start)
@@ -2447,9 +2327,8 @@ class CTDParser:
         output_fd.close()
 
         print(done_sym + "Processed (%d) entries. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
-        return disease_name_map
 
-    def __parse_disease_molecular_func(self, source_fp, output_fp, disease_name_map):
+    def __parse_disease_molecular_func(self, source_fp, output_fp):
         """
         Parse ctd disease biological process associations
 
@@ -2479,11 +2358,10 @@ class CTDParser:
 
                 go_id = parts[1]
                 disease_id = parts[3]
-                if disease_id.startswith('OMIM'):
+                if disease_id.startswith('MESH'):
                     nb_entries += 1
                     disease_id = disease_id[5:]
-                    disease_name_map[disease_id] = sanatize_text(parts[2])
-                    output_fd.write(f'{disease_id}\tMOLECULAR_FUNCTION\t{go_id}\tINFERRED\n')
+                    output_fd.write(f'{disease_id}\tGO_MF\t{go_id}\tINFERRED\n')
 
                     if nb_entries % 5 == 0:
                         speed = nb_entries / (timer() - start)
@@ -2493,7 +2371,6 @@ class CTDParser:
         output_fd.close()
 
         print(done_sym + "Processed (%d) entries. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
-        return disease_name_map
 
     def __parse_chemical_phenotype(self, source_fp, output_fp):
         """
@@ -2540,7 +2417,7 @@ class CTDParser:
                     pubmed_refs = ','.join(parts[12].strip().split('|'))
                     has_refs = True
 
-                if chem_id in self._chem_id_map and organism == '9606':
+                if chem_id in self._chem_id_map:
                     nb_entries += 1
                     actions = map(lambda x: sanatize_text(x), parts[9].upper().split('|'))
                     for prot_id in self._chem_id_map[chem_id]:
@@ -2558,7 +2435,7 @@ class CTDParser:
         output_fd.close()
         print(done_sym + "Processed (%d) entries. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
 
-    def parse_ctd(self, source_dp, output_dp):
+    def parse_ctd(self, source_dp, uniprot_fp, output_dp):
         """
         Parse ctd files
 
@@ -2569,7 +2446,7 @@ class CTDParser:
         output_dp : str
             The path to the output directory
         """
-
+        
         print_section_header(
             "Parsing CDT files (%s)" %
             (bcolors.OKGREEN + source_dp+'/CTD_*' + bcolors.ENDC)
@@ -2582,8 +2459,14 @@ class CTDParser:
         )
         nb_entries += 1
 
+        protein_set = set()
+        with open(uniprot_fp, 'r') as fd:
+            for line in fd:
+                protein_set.add(line.split('\t')[0])
+
         self._gene_id_map = self.__parse_gene_id_map(
-            join(source_dp, "CTD_genes.tsv.gz")
+            join(source_dp, "CTD_genes.tsv.gz"),
+            protein_set
         )
         nb_entries += 1
 
@@ -2593,18 +2476,16 @@ class CTDParser:
         )
         nb_entries += 1
 
-        disease_name_map = self.__parse_gene_disease(
+        self.__parse_gene_disease(
             join(source_dp, "CTD_genes_diseases.tsv.gz"),
-            join(output_dp, "ctd_protein_disease_association.txt"),
-            {}
+            join(output_dp, "ctd_protein_disease_association.txt")
         )
         nb_entries += 1
 
-        disease_name_map = self.__parse_disease_pathway(
+        self.__parse_disease_pathway(
             join(source_dp, "CTD_diseases_pathways.tsv.gz"),
             join(output_dp, "ctd_disease_kegg_pathway_association.txt"),
-            join(output_dp, "ctd_disease_reactome_pathway_association.txt"),
-            disease_name_map
+            join(output_dp, "ctd_disease_reactome_pathway_association.txt")
         )
         nb_entries += 1
 
@@ -2617,8 +2498,7 @@ class CTDParser:
 
         self.__parse_chemical_disease(
             join(source_dp, "CTD_chemicals_diseases.tsv.gz"),
-            join(output_dp, "ctd_drug_diseases.txt"),
-            disease_name_map
+            join(output_dp, "ctd_drug_diseases.txt")
         )
         nb_entries += 1
         
@@ -2629,24 +2509,21 @@ class CTDParser:
         )
         nb_entries += 1
 
-        disease_name_map = self.__parse_disease_bio_process(
+        self.__parse_disease_bio_process(
             join(source_dp, "CTD_disease_biological_process.tsv.gz"),
-            join(output_dp, "ctd_disease_biological_process.txt"),
-            disease_name_map
+            join(output_dp, "ctd_disease_biological_process.txt")
         )
         nb_entries += 1
 
-        disease_name_map = self.__parse_disease_cellular_comp(
+        self.__parse_disease_cellular_comp(
             join(source_dp, "CTD_disease_cellular_component.tsv.gz"),
-            join(output_dp, "ctd_disease_cellular_component.txt"),
-            disease_name_map
+            join(output_dp, "ctd_disease_cellular_component.txt")
         )
         nb_entries += 1
 
-        disease_name_map = self.__parse_disease_molecular_func(
+        self.__parse_disease_molecular_func(
             join(source_dp, "CTD_disease_molecular_function.tsv.gz"),
-            join(output_dp, "ctd_disease_molecular_function.txt"),
-            disease_name_map
+            join(output_dp, "ctd_disease_molecular_function.txt")
         )
         nb_entries += 1
 
@@ -2655,11 +2532,6 @@ class CTDParser:
             join(output_dp, "ctd_drug_phenotype.txt")
         )
         nb_entries += 1
-
-        # Write OMIM_ID \ Disease name mapping
-        with open(join(output_dp, 'ctd_disease_names.txt'), 'w') as disease_fd:
-            for disease_id, disease_name in disease_name_map.items():
-                disease_fd.write(f'{disease_id}\tDISEASE_NAME\t{disease_name}\n')
 
         print(done_sym + "Processed (%d) files. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
 
@@ -3036,8 +2908,9 @@ class MESHParser():
         Initialize Sider Parser
         """
         self._filenames = [
-            'mesh_disease_names.txt',
-            'mesh_disease_tree.txt'
+            'mesh_metadata.txt',
+            'mesh_disease_tree.txt',
+            'mesh_drug_tree.txt'
         ]
 
     @property
@@ -3052,7 +2925,7 @@ class MESHParser():
         """
         return self._filenames
 
-    def parse_mesh_entry(self, entry_list, name_writer, tree_writer):
+    def parse_mesh_entry(self, entry_list, meta_writer, disease_writer, drug_writer):
         """
         Parse the Sider side effects file.
 
@@ -3090,18 +2963,31 @@ class MESHParser():
         
         
         is_disease = False
+        is_drug = False
         if 'MN' in entry:
             for tree in entry['MN']:
                 if tree.startswith('C'):
                     is_disease = True
                     branches = tree.split('.')
                     for i in range(len(branches)):
-                        tree_writer.write(f'{entry_id}\tDISEASE_SUPERGRP\t{".".join(branches[:i+1])}\n')
+                        disease_writer.write(f'{entry_id}\tDISEASE_SUPERGRP\t{".".join(branches[:i+1])}\n')
+                elif tree.startswith('D'):
+                    is_drug = True
+                    branches = tree.split('.')
+                    for i in range(len(branches)):
+                        drug_writer.write(f'{entry_id}\tDRUG_SUPERGRP\t{".".join(branches[:i+1])}\n')
 
-        if is_disease:
-            name_writer.write(f'{entry_id}\tNAME\t{entry_name}\n')
-        name_writer.flush()
-        tree_writer.flush()
+        if is_disease or is_drug:
+            meta_writer.write(f'{entry_id}\tNAME\t{entry_name}\n')
+            if is_disease:
+                meta_writer.write(f'{entry_id}\tTYPE\tDISEASE\n')
+            if is_drug:
+                meta_writer.write(f'{entry_id}\tTYPE\tDRUG\n')
+        if is_disease and is_drug:
+            print(f'{entry_id}\tNAME\t{entry_name}')
+        meta_writer.flush()
+        disease_writer.flush()
+        drug_writer.flush()
 
     def parse_mesh(self, source_fp, output_dp):
         """
@@ -3122,18 +3008,19 @@ class MESHParser():
         nb_entries = 0
         current_entry = []
 
-        name_writer = SetWriter(join(output_dp, 'mesh_disease_names.txt'))
+        meta_writer = SetWriter(join(output_dp, 'mesh_metadata.txt'))
         tree_writer = SetWriter(join(output_dp, 'mesh_disease_tree.txt'))
+        drug_writer = SetWriter(join(output_dp, 'mesh_drug_tree.txt'))
         with open(source_fp, 'r') as source_fd:
             for line in source_fd:
                 if len(line.strip()) == 0:
                     nb_entries += 1
-                    self.parse_mesh_entry(current_entry, name_writer, tree_writer)
+                    self.parse_mesh_entry(current_entry, meta_writer, tree_writer, drug_writer)
                     current_entry = []
                 else:
                     current_entry.append(line.strip())
 
-        name_writer.close()
+        meta_writer.close()
         tree_writer.close()
-
+        drug_writer.close()
         print(done_sym + "Processed (%d) files. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
