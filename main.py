@@ -135,12 +135,13 @@ def main():
     # processing MESH
     mesh_parser = MESHParser()
     mesh_diseases_fp = join(sources_dp, 'mesh_diseases.txt')
+    mesh_supp_fp = join(sources_dp, "mesh_supp_concepts.xml")
     mesh_dp = join(preprocessed_dp, 'mesh')
     mkdir(mesh_dp) if not isdir(mesh_dp) else None
     mesh_fps = [join(mesh_dp, fn) for fn in mesh_parser.filenames]
     invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in mesh_fps]))
     if invalid_md5:
-        mesh_parser.parse_mesh(mesh_diseases_fp, mesh_dp)
+        mesh_parser.parse_mesh(mesh_diseases_fp, mesh_supp_fp, mesh_dp)
         for ofp in mesh_fps:
             export_file_md5(ofp)
     else:

@@ -102,7 +102,7 @@ def get_all_mesh_diseases():
     with open(mesh_meta, 'r') as fd:
         for line in fd:
             disease, meta, value = line.strip().split('\t')
-            if meta == 'TYPE' and value == 'DISEASE':
+            if meta == 'TYPE' and (value == 'DISEASE' or value == 'SCR_DISEASE'):
                 mesh_diseases.add(disease)
 
     return mesh_diseases

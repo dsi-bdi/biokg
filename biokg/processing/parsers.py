@@ -2034,16 +2034,9 @@ class CTDParser:
                     data_status='INFERRED'
                     if len(parts[5].strip()) > 0 and parts[5].strip() in evidence_types:
                         data_status = 'CURATED'
-                    if 'MESH' in parts[4]:
-                        disease_ids = map(lambda x: x[5:], filter(lambda x: x.startswith('MESH'), parts[3].split('|')))
-                    #elif len(parts[8].strip()) > 0:
-                    #    disease_ids = parts[8].split('|')
-                    else:
-                        continue
+                    
                     nb_entries += 1
                     disease_ids = map(lambda x: x[5:], filter(lambda x: x.startswith('MESH'), parts[4].split('|')))
-                    disease_ids = parts[8].split('|')
-                    disease_name = sanatize_text(parts[3])
 
                     if data_status != 'CURATED':
                         continue
@@ -2910,7 +2903,8 @@ class MESHParser():
         self._filenames = [
             'mesh_metadata.txt',
             'mesh_disease_tree.txt',
-            'mesh_drug_tree.txt'
+            'mesh_drug_tree.txt',
+            'mesh_concept_heading.txt'
         ]
 
     @property
@@ -2989,7 +2983,36 @@ class MESHParser():
         disease_writer.flush()
         drug_writer.flush()
 
-    def parse_mesh(self, source_fp, output_dp):
+    def _parse_mesh_supplementary_concepts(self, supp_fp, meta_writer, link_writer):
+        with open(supp_fp, 'r') as xml_fd:
+            for event, entry in ET.iterparse(xml_fd):
+                if entry.tag == 'SupplementalRecord':
+                    entry_type = entry.attrib['SCRClass']
+                    entry_type_str = ''
+                    if entry_type == '3':
+                        entry_type_str = 'SCR_DISEASE'
+                    elif entry_type == '4':
+                        entry_type_str = 'SCR_DRUG'
+                    else:
+                        entry.clear()
+                        continue
+                    entry_id = entry.find('./SupplementalRecordUI').text
+                    name = entry.find('./SupplementalRecordName/String').text
+                    
+                    meta_writer.write(f'{entry_id}\tNAME\t{name}\n')
+                    meta_writer.write(f'{entry_id}\tTYPE\t{entry_type_str}\n')
+                    mappings = entry.findall('./HeadingMappedToList/HeadingMappedTo/DescriptorReferredTo/DescriptorUI')
+                    
+                    for mapping in mappings:
+                        mapping_desc = mapping.text
+                        if mapping_desc.startswith('*'):
+                            mapping_desc = mapping_desc[1:]
+                        link_writer.write(f'{entry_id}\tMAPPED_HEADING\t{mapping_desc}\n')
+                    entry.clear()
+        meta_writer.flush()
+        link_writer.flush()
+
+    def parse_mesh(self, desc_fp, supp_fp, output_dp):
         """
         Parse Mesg files
 
@@ -3001,8 +3024,9 @@ class MESHParser():
             The path to the output directory
         """
         print_section_header(
-            "Parsing MESH file (%s)" %
-            (bcolors.OKGREEN + source_fp + bcolors.ENDC)
+            "Parsing MESH file (%s and %s)" %
+            (bcolors.OKGREEN + desc_fp + bcolors.ENDC,
+            bcolors.OKGREEN + supp_fp + bcolors.ENDC)
         )
         start = timer()
         nb_entries = 0
@@ -3011,7 +3035,8 @@ class MESHParser():
         meta_writer = SetWriter(join(output_dp, 'mesh_metadata.txt'))
         tree_writer = SetWriter(join(output_dp, 'mesh_disease_tree.txt'))
         drug_writer = SetWriter(join(output_dp, 'mesh_drug_tree.txt'))
-        with open(source_fp, 'r') as source_fd:
+        link_writer = SetWriter(join(output_dp, 'mesh_concept_heading.txt'))
+        with open(desc_fp, 'r') as source_fd:
             for line in source_fd:
                 if len(line.strip()) == 0:
                     nb_entries += 1
@@ -3020,7 +3045,10 @@ class MESHParser():
                 else:
                     current_entry.append(line.strip())
 
+
+        self._parse_mesh_supplementary_concepts(supp_fp, meta_writer, link_writer)
         meta_writer.close()
         tree_writer.close()
         drug_writer.close()
+        link_writer.close()
         print(done_sym + "Processed (%d) files. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)

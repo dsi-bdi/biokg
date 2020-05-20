@@ -244,7 +244,7 @@ def download_mesh_data(sources_dp, srcs_cp):
     print_section_header("Downloading SIDER data files")
 
     disease_fp = join(sources_dp, "mesh_diseases.txt")
-    
+    supp_fp = join(sources_dp, "mesh_supp_concepts.xml")
     download_file_md5_check(srcs_cp["mesh"]["mesh_diseases"], disease_fp)
-    
+    download_file_md5_check(srcs_cp["mesh"]["mesh_supp_concepts"], supp_fp)
     print_bold_line()
