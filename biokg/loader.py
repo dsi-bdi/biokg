@@ -19,8 +19,10 @@ def download_uniprot_files(sources_dp, srcs_cp):
     # download source data (uniprot)
     print_section_header("Downloading UniProt data files")
     swissprot_entries_fp = join(sources_dp, "swissprot_entries.txt.gz")
-
+    interpro_list_fp = join(sources_dp, "interpro_entries.txt")
     download_file_md5_check(srcs_cp["uniprot"]["swissprot_entries"], swissprot_entries_fp)
+    download_file_md5_check(srcs_cp["uniprot"]["interpro_list"], interpro_list_fp)
+    
     print_bold_line()
 
 
@@ -209,4 +211,40 @@ def download_drugbank_data(sources_dp, srcs_cp, username, password):
         password = password
     )
 
+    print_bold_line()
+
+
+def download_kegg_data(sources_dp, srcs_cp):
+    """ Download sider database files
+    Parameters
+    ----------
+    sources_dp : str
+        the sources directory path
+    srcs_cp : RawConfigParser
+        source urls config parser
+    """
+    print_section_header("Downloading SIDER data files")
+
+    disease_fp = join(sources_dp, "diseases.txt")
+    
+    download_file_md5_check(srcs_cp["kegg"]["diseases"], disease_fp)
+    
+    print_bold_line()
+
+
+def download_mesh_data(sources_dp, srcs_cp):
+    """ Download sider database files
+    Parameters
+    ----------
+    sources_dp : str
+        the sources directory path
+    srcs_cp : RawConfigParser
+        source urls config parser
+    """
+    print_section_header("Downloading SIDER data files")
+
+    disease_fp = join(sources_dp, "mesh_diseases.txt")
+    supp_fp = join(sources_dp, "mesh_supp_concepts.xml")
+    download_file_md5_check(srcs_cp["mesh"]["mesh_diseases"], disease_fp)
+    download_file_md5_check(srcs_cp["mesh"]["mesh_supp_concepts"], supp_fp)
     print_bold_line()
