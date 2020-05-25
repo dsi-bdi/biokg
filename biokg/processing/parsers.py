@@ -344,7 +344,7 @@ class UniProtTxtParser:
             if "DISEASE" in comments_cats_dict:
                 disease_codes = re.findall(P_DISEASE_CODE, comments_cats_dict["DISEASE"])
                 for c in disease_codes:
-                    entry_facts.append([entry_code, "RELATED_DISEASE", c])
+                    entry_facts.append([entry_code, "RELATED_MIM", c])
 
         # ------------------------------------------------------------------------
         # Processing FT prefix section [Sequence annotations]
@@ -782,7 +782,7 @@ class DrugBankParser:
         """
         """
         self._filemap = {
-            "interaction" : "db_interactions.txt",
+            "interaction" : "db_ddi.txt",
             "target" : "db_targets.txt",
             "pathway" : "db_pathways.txt",
             "meta" : "db_meta.txt",
@@ -1073,6 +1073,7 @@ class DrugBankParser:
                     continue
                 if child.text is not None and child.text != '':
                     c_type = child.tag.split('}')[-1]
+                    c_type = sanatize_text(c_type).upper()
                     value = sanatize_text(child.text)
                     if value is not None and value != '':
                         classification_fd.write(f'{drug_id}\t{c_type}\t{value}\n')
