@@ -1045,214 +1045,219 @@ def compress_folder(folder):
             remove(src_fp)
 
 
-# Get the set of proteins, drugs and diseases to use and write metadata
-print('Writing Metadata')
-protein_set = get_all_proteins()
-write_uniprot_metadata()
+def compile_graph():
+    # Get the set of proteins, drugs and diseases to use and write metadata
+    print('Writing Metadata')
+    protein_set = get_all_proteins()
+    write_uniprot_metadata()
 
-drug_set = get_all_drugs()
-write_drugbank_metadata()
+    drug_set = get_all_drugs()
+    write_drugbank_metadata()
 
-disease_set = get_all_mesh_diseases()
-write_mesh_metadata()
+    disease_set = get_all_mesh_diseases()
+    write_mesh_metadata()
 
-# Get Links
-print('Writing Links')
-triples = get_all_unique_ppi(protein_set)
-print(f'{len(triples)} protein protein interactions')
-write_triples(triples, join(links_root, 'ppi.txt'))
+    # Get Links
+    print('Writing Links')
+    triples = get_all_unique_ppi(protein_set)
+    print(f'{len(triples)} protein protein interactions')
+    write_triples(triples, join(links_root, 'ppi.txt'))
 
-write_ppi_by_species()
-get_all_protein_sequence_annotations(protein_set)
+    write_ppi_by_species()
+    get_all_protein_sequence_annotations(protein_set)
 
-triples = get_all_unique_phosphorylations(protein_set)
-print(f'{len(triples)} protein protein phosphorylations')
-write_triples(triples, join(links_root, 'phospohrylation.txt'))
+    triples = get_all_unique_phosphorylations(protein_set)
+    print(f'{len(triples)} protein protein phosphorylations')
+    write_triples(triples, join(links_root, 'phospohrylation.txt'))
 
-triples, function_triples = get_all_protein_drug_interactions(protein_set, drug_set)
-print(f'{len(triples)} drug targets')
-write_triples(triples, join(links_root, 'dpi.txt'))
-write_triples(function_triples, join(links_root, 'drug_protein_function.txt'))
+    triples, function_triples = get_all_protein_drug_interactions(protein_set, drug_set)
+    print(f'{len(triples)} drug targets')
+    write_triples(triples, join(links_root, 'dpi.txt'))
+    write_triples(function_triples, join(links_root, 'drug_protein_function.txt'))
 
-triples = get_all_protein_pathway_associations(protein_set)
-print(f'{len(triples)} protein pathway associations')
-write_triples(triples, join(links_root, 'protein_pathway.txt'))
+    triples = get_all_protein_pathway_associations(protein_set)
+    print(f'{len(triples)} protein pathway associations')
+    write_triples(triples, join(links_root, 'protein_pathway.txt'))
 
-triples = get_all_protein_disease_associations(protein_set, disease_set)
-print(f'{len(triples)} protein disease associations')
-write_triples(triples, join(links_root, 'protein_disease.txt'))
+    triples = get_all_protein_disease_associations(protein_set, disease_set)
+    print(f'{len(triples)} protein disease associations')
+    write_triples(triples, join(links_root, 'protein_disease.txt'))
 
-triples, tissue_structure = get_all_protein_expressions(protein_set)
-print(f'{len(triples)} protein tissue associations')
-write_triples(triples, join(protein_properties_root, 'protein_expression.txt'))
-write_triples(tissue_structure, join(cell_properties_root, 'cell_tissue_membership.txt'))
+    triples, tissue_structure = get_all_protein_expressions(protein_set)
+    print(f'{len(triples)} protein tissue associations')
+    write_triples(triples, join(protein_properties_root, 'protein_expression.txt'))
+    write_triples(tissue_structure, join(cell_properties_root, 'cell_tissue_membership.txt'))
 
-triples = get_protein_complex_rels(protein_set)
-print(f'{len(triples)} protein complex rels')
-write_triples(triples, join(links_root, 'protein_complex.txt'))
+    triples = get_protein_complex_rels(protein_set)
+    print(f'{len(triples)} protein complex rels')
+    write_triples(triples, join(links_root, 'protein_complex.txt'))
 
-triples, tl_triples = get_complex_pathway_rels()
-print(f'{len(triples)} complex pathway rels')
-write_triples(triples, join(links_root, 'complex_pathway.txt'))
-write_triples(tl_triples, join(links_root, 'complex_top_level_pathway.txt'))
+    triples, tl_triples = get_complex_pathway_rels()
+    print(f'{len(triples)} complex pathway rels')
+    write_triples(triples, join(links_root, 'complex_pathway.txt'))
+    write_triples(tl_triples, join(links_root, 'complex_top_level_pathway.txt'))
 
-triples = get_pathway_rels()
-print(f'{len(triples)} pathway rels')
-reactome_meta = join(meta_root, 'reactome')
-makedirs(reactome_meta) if not isdir(reactome_meta) else None
-write_triples(triples, join(reactome_meta, 'pathway_parent.txt'))
+    triples = get_pathway_rels()
+    print(f'{len(triples)} pathway rels')
+    reactome_meta = join(meta_root, 'reactome')
+    makedirs(reactome_meta) if not isdir(reactome_meta) else None
+    write_triples(triples, join(reactome_meta, 'pathway_parent.txt'))
 
-triples = get_all_drug_pathway_associations(drug_set)
-print(f'{len(triples)} drug pathway associations')
-write_triples(triples, join(links_root, 'drug_pathway.txt'))
+    triples = get_all_drug_pathway_associations(drug_set)
+    print(f'{len(triples)} drug pathway associations')
+    write_triples(triples, join(links_root, 'drug_pathway.txt'))
 
-triples = get_all_drug_drug_interactions(drug_set)
-print(f'{len(triples)} drug drug associations')
-write_triples(triples, join(links_root, 'ddi.txt'))
+    triples = get_all_drug_drug_interactions(drug_set)
+    print(f'{len(triples)} drug drug associations')
+    write_triples(triples, join(links_root, 'ddi.txt'))
 
-triples = get_all_drug_disease_associations(drug_set, disease_set)
-print(f'{len(triples)} drug disease associations')
-write_triples(triples, join(links_root, 'drug_disease.txt'))
+    triples = get_all_drug_disease_associations(drug_set, disease_set)
+    print(f'{len(triples)} drug disease associations')
+    write_triples(triples, join(links_root, 'drug_disease.txt'))
 
-triples = get_all_disease_pathway_associations(disease_set)
-print(f'{len(triples)} disease pathway associations')
-write_triples(triples, join(links_root, 'disease_pathway.txt'))
+    triples = get_all_disease_pathway_associations(disease_set)
+    print(f'{len(triples)} disease pathway associations')
+    write_triples(triples, join(links_root, 'disease_pathway.txt'))
 
-# Get Properties
-print('Writing properties')
-triples, indication_triples = get_all_drug_side_effects(drug_set)
-print(f'{len(triples)} drug side effect associations')
-write_triples(triples, join(drug_properties_root, 'drug_sideeffect.txt'))
-write_triples(indication_triples, join(drug_properties_root, 'drug_indications.txt'))
+    # Get Properties
+    print('Writing properties')
+    triples, indication_triples = get_all_drug_side_effects(drug_set)
+    print(f'{len(triples)} drug side effect associations')
+    write_triples(triples, join(drug_properties_root, 'drug_sideeffect.txt'))
+    write_triples(indication_triples, join(drug_properties_root, 'drug_indications.txt'))
 
-triples = get_all_drug_atc_codes(drug_set)
-print(f'{len(triples)} drug atc codes')
-write_triples(triples, join(drug_properties_root, 'drug_atc_codes.txt'))
+    triples = get_all_drug_atc_codes(drug_set)
+    print(f'{len(triples)} drug atc codes')
+    write_triples(triples, join(drug_properties_root, 'drug_atc_codes.txt'))
 
-triples = get_disease_tree(disease_set)
-print(f'{len(triples)} disease tree')
-write_triples(triples, join(disease_properties_root, 'disease_tree.txt'))
+    triples = get_disease_tree(disease_set)
+    print(f'{len(triples)} disease tree')
+    write_triples(triples, join(disease_properties_root, 'disease_tree.txt'))
 
-write_protein_cellline_expressions(protein_set)
+    write_protein_cellline_expressions(protein_set)
 
-copy(
-    join(data_root, 'medgen', 'mim_categories.txt'),
-    mim_properties_root
-)
+    copy(
+        join(data_root, 'medgen', 'mim_categories.txt'),
+        mim_properties_root
+    )
 
-# Copy Other datasets
-print('Copying other files')
-other_ctd = join(other_root, 'ctd')
-makedirs(other_ctd) if not isdir(other_ctd) else None
-copy_folder(
-    join(data_root, 'ctd'),
-    other_ctd,
-    included_files=[
-        'ctd_disease_biological_process.txt',
-        'ctd_disease_cellular_component.txt',
-        'ctd_disease_molecular_function.txt',
-        'ctd_drug_phenotype.txt',
-        'ctd_drug_protein_interactions.txt',
-        'ctd_disease_kegg_pathway_association.txt',
-        'ctd_disease_reactome_pathway_association.txt'
-    ]
-)
+    # Copy Other datasets
+    print('Copying other files')
+    other_ctd = join(other_root, 'ctd')
+    makedirs(other_ctd) if not isdir(other_ctd) else None
+    copy_folder(
+        join(data_root, 'ctd'),
+        other_ctd,
+        included_files=[
+            'ctd_disease_biological_process.txt',
+            'ctd_disease_cellular_component.txt',
+            'ctd_disease_molecular_function.txt',
+            'ctd_drug_phenotype.txt',
+            'ctd_drug_protein_interactions.txt',
+            'ctd_disease_kegg_pathway_association.txt',
+            'ctd_disease_reactome_pathway_association.txt'
+        ]
+    )
 
-other_cello = join(other_root, 'cellosaurus')
-makedirs(other_cello) if not isdir(other_cello) else None
-copy_folder(
-    join(data_root, 'cellosaurus'),
-    other_cello,
-    included_files=[
-        'cl_cat.txt',
-        'cl_geo.txt',
-        'cl_map.txt',
-        'cl_pmid.txt'
-    ]
-)
+    other_cello = join(other_root, 'cellosaurus')
+    makedirs(other_cello) if not isdir(other_cello) else None
+    copy_folder(
+        join(data_root, 'cellosaurus'),
+        other_cello,
+        included_files=[
+            'cl_cat.txt',
+            'cl_geo.txt',
+            'cl_map.txt',
+            'cl_pmid.txt'
+        ]
+    )
 
-other_drugbank = join(other_root, 'drugbank')
-makedirs(other_drugbank) if not isdir(other_drugbank) else None
-copy_folder(
-    join(data_root, 'drugbank'),
-    other_drugbank,
-    included_files=[
-        'db_mechanism_or_action.txt',
-        'db_mesh.txt'
-    ]
-)
+    other_drugbank = join(other_root, 'drugbank')
+    makedirs(other_drugbank) if not isdir(other_drugbank) else None
+    copy_folder(
+        join(data_root, 'drugbank'),
+        other_drugbank,
+        included_files=[
+            'db_mechanism_or_action.txt',
+            'db_mesh.txt'
+        ]
+    )
 
-other_hpa = join(other_root, 'hpa')
-makedirs(other_hpa) if not isdir(other_hpa) else None
-copy_folder(
-    join(data_root, 'hpa'),
-    other_hpa,
-    included_files=[
-        'hpa_antibodies.txt'
-    ]
-)
+    other_hpa = join(other_root, 'hpa')
+    makedirs(other_hpa) if not isdir(other_hpa) else None
+    copy_folder(
+        join(data_root, 'hpa'),
+        other_hpa,
+        included_files=[
+            'hpa_antibodies.txt'
+        ]
+    )
 
-other_kegg = join(other_root, 'kegg')
-makedirs(other_kegg) if not isdir(other_kegg) else None
-copy_folder(
-    join(data_root, 'kegg'),
-    other_kegg,
-    included_files=[
-        'gene_network.txt',
-        'glycan_pathway.txt',
-        'network_disease.txt',
-        'network_drug.txt',
-        'network_pathway.txt',
-        'disease_meta.txt'
-    ]
-)
+    other_kegg = join(other_root, 'kegg')
+    makedirs(other_kegg) if not isdir(other_kegg) else None
+    copy_folder(
+        join(data_root, 'kegg'),
+        other_kegg,
+        included_files=[
+            'gene_network.txt',
+            'glycan_pathway.txt',
+            'network_disease.txt',
+            'network_drug.txt',
+            'network_pathway.txt',
+            'disease_meta.txt'
+        ]
+    )
 
-other_mesh = join(other_root, 'mesh')
-makedirs(other_mesh) if not isdir(other_mesh) else None
-copy_folder(
-    join(data_root, 'mesh'),
-    other_mesh,
-    included_files=[
-        'mesh_disease_concept_heading.txt',
-        'mesh_drug_concept_heading.txt',
-        'mesh_scr_drug_meta.txt',
-        'mesh_drug_tree.txt',
-        'mesh_drug_meta.txt'
-    ]
-)
+    other_mesh = join(other_root, 'mesh')
+    makedirs(other_mesh) if not isdir(other_mesh) else None
+    copy_folder(
+        join(data_root, 'mesh'),
+        other_mesh,
+        included_files=[
+            'mesh_disease_concept_heading.txt',
+            'mesh_drug_concept_heading.txt',
+            'mesh_scr_drug_meta.txt',
+            'mesh_drug_tree.txt',
+            'mesh_drug_meta.txt'
+        ]
+    )
 
-other_phos = join(other_root, 'phosphosite')
-makedirs(other_phos) if not isdir(other_phos) else None
-copy_folder(
-    join(data_root, 'phosphosite'),
-    other_phos,
-    included_files=[
-        'phosphorylation_site.txt'
-    ]
-)
+    other_phos = join(other_root, 'phosphosite')
+    makedirs(other_phos) if not isdir(other_phos) else None
+    copy_folder(
+        join(data_root, 'phosphosite'),
+        other_phos,
+        included_files=[
+            'phosphorylation_site.txt'
+        ]
+    )
 
-other_reactome = join(other_root, 'reactome')
-makedirs(other_reactome) if not isdir(other_reactome) else None
-copy_folder(
-    join(data_root, 'reactome'),
-    other_reactome,
-    included_files=[
-        'reactome_go_mapping.txt',
-        'reactome_isoform_pathway.txt'
-    ]
-)
+    other_reactome = join(other_root, 'reactome')
+    makedirs(other_reactome) if not isdir(other_reactome) else None
+    copy_folder(
+        join(data_root, 'reactome'),
+        other_reactome,
+        included_files=[
+            'reactome_go_mapping.txt',
+            'reactome_isoform_pathway.txt'
+        ]
+    )
 
-other_sider = join(other_root, 'sider')
-makedirs(other_sider) if not isdir(other_sider) else None
-copy_folder(
-    join(data_root, 'sider'),
-    other_sider,
-    included_files=[
-        'sider_indications_meta.txt',
-        'sider_effects_meta.txt'
-    ]
-)
+    other_sider = join(other_root, 'sider')
+    makedirs(other_sider) if not isdir(other_sider) else None
+    copy_folder(
+        join(data_root, 'sider'),
+        other_sider,
+        included_files=[
+            'sider_indications_meta.txt',
+            'sider_effects_meta.txt'
+        ]
+    )
 
-# Gzip output
-print('Compressing output')
-compress_folder(output_root)
+    # Gzip output
+    print('Compressing output')
+    compress_folder(output_root)
+
+
+if __name__ == '__main__':
+    compile_graph()
