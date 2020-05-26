@@ -2902,10 +2902,14 @@ class MESHParser():
         Initialize Sider Parser
         """
         self._filenames = [
-            'mesh_metadata.txt',
+            'mesh_disease_meta.txt',
+            'mesh_drug_meta.txt',
+            'mesh_scr_disease_meta.txt',
+            'mesh_scr_drug_meta.txt',
             'mesh_disease_tree.txt',
             'mesh_drug_tree.txt',
-            'mesh_concept_heading.txt'
+            'mesh_disease_concept_heading.txt',
+            'mesh_drug_concept_heading.txt'
         ]
 
     @property
@@ -2920,7 +2924,7 @@ class MESHParser():
         """
         return self._filenames
 
-    def parse_mesh_entry(self, entry_list, meta_writer, disease_writer, drug_writer):
+    def parse_mesh_entry(self, entry_list, disease_meta_writer, drug_meta_writer, disease_writer, drug_writer):
         """
         Parse the Sider side effects file.
 
@@ -2972,19 +2976,19 @@ class MESHParser():
                     for i in range(len(branches)):
                         drug_writer.write(f'{entry_id}\tDRUG_SUPERGRP\t{".".join(branches[:i+1])}\n')
 
-        if is_disease or is_drug:
-            meta_writer.write(f'{entry_id}\tNAME\t{entry_name}\n')
-            if is_disease:
-                meta_writer.write(f'{entry_id}\tTYPE\tDISEASE\n')
-            if is_drug:
-                meta_writer.write(f'{entry_id}\tTYPE\tDRUG\n')
-        if is_disease and is_drug:
-            print(f'{entry_id}\tNAME\t{entry_name}')
-        meta_writer.flush()
+        if is_disease:
+            disease_meta_writer.write(f'{entry_id}\tNAME\t{entry_name}\n')
+            disease_meta_writer.write(f'{entry_id}\tTYPE\tDISEASE\n')
+        if is_drug:
+            drug_meta_writer.write(f'{entry_id}\tNAME\t{entry_name}\n')
+            drug_meta_writer.write(f'{entry_id}\tTYPE\tDRUG\n')
+
+        disease_meta_writer.flush()
+        drug_meta_writer.flush()
         disease_writer.flush()
         drug_writer.flush()
 
-    def _parse_mesh_supplementary_concepts(self, supp_fp, meta_writer, link_writer):
+    def _parse_mesh_supplementary_concepts(self, supp_fp, disease_meta_writer, drug_meta_writer, disease_link_writer, drug_link_writer):
         with open(supp_fp, 'r') as xml_fd:
             for event, entry in ET.iterparse(xml_fd):
                 if entry.tag == 'SupplementalRecord':
@@ -2999,7 +3003,13 @@ class MESHParser():
                         continue
                     entry_id = entry.find('./SupplementalRecordUI').text
                     name = entry.find('./SupplementalRecordName/String').text
-                    
+                    if entry_type_str == 'SCR_DISEASE':
+                        meta_writer = disease_meta_writer
+                        link_writer = disease_link_writer
+                    else:
+                        meta_writer = drug_meta_writer
+                        link_writer = drug_link_writer
+
                     meta_writer.write(f'{entry_id}\tNAME\t{name}\n')
                     meta_writer.write(f'{entry_id}\tTYPE\t{entry_type_str}\n')
                     mappings = entry.findall('./HeadingMappedToList/HeadingMappedTo/DescriptorReferredTo/DescriptorUI')
@@ -3010,8 +3020,10 @@ class MESHParser():
                             mapping_desc = mapping_desc[1:]
                         link_writer.write(f'{entry_id}\tMAPPED_HEADING\t{mapping_desc}\n')
                     entry.clear()
-        meta_writer.flush()
-        link_writer.flush()
+        disease_meta_writer.flush()
+        disease_link_writer.flush()
+        drug_meta_writer.flush()
+        drug_link_writer.flush()
 
     def parse_mesh(self, desc_fp, supp_fp, output_dp):
         """
@@ -3033,23 +3045,87 @@ class MESHParser():
         nb_entries = 0
         current_entry = []
 
-        meta_writer = SetWriter(join(output_dp, 'mesh_metadata.txt'))
+        dis_meta_writer = SetWriter(join(output_dp, 'mesh_disease_meta.txt'))
+        drg_meta_writer = SetWriter(join(output_dp, 'mesh_drug_meta.txt'))
+        scr_dis_meta_writer = SetWriter(join(output_dp, 'mesh_scr_disease_meta.txt'))
+        scr_drg_meta_writer = SetWriter(join(output_dp, 'mesh_scr_drug_meta.txt'))
         tree_writer = SetWriter(join(output_dp, 'mesh_disease_tree.txt'))
         drug_writer = SetWriter(join(output_dp, 'mesh_drug_tree.txt'))
-        link_writer = SetWriter(join(output_dp, 'mesh_concept_heading.txt'))
+        disease_link_writer = SetWriter(join(output_dp, 'mesh_disease_concept_heading.txt'))
+        drug_link_writer = SetWriter(join(output_dp, 'mesh_drug_concept_heading.txt'))
         with open(desc_fp, 'r') as source_fd:
             for line in source_fd:
                 if len(line.strip()) == 0:
                     nb_entries += 1
-                    self.parse_mesh_entry(current_entry, meta_writer, tree_writer, drug_writer)
+                    self.parse_mesh_entry(current_entry, dis_meta_writer, drg_meta_writer, tree_writer, drug_writer)
                     current_entry = []
                 else:
                     current_entry.append(line.strip())
 
 
-        self._parse_mesh_supplementary_concepts(supp_fp, meta_writer, link_writer)
-        meta_writer.close()
+        self._parse_mesh_supplementary_concepts(supp_fp, scr_dis_meta_writer, scr_drg_meta_writer, disease_link_writer, drug_link_writer)
+        dis_meta_writer.close()
+        drg_meta_writer.close()
+        scr_dis_meta_writer.close()
+        scr_drg_meta_writer.close()
         tree_writer.close()
         drug_writer.close()
-        link_writer.close()
+        disease_link_writer.close()
+        drug_link_writer.close()
+        print(done_sym + "Processed (%d) files. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
+
+
+class MedgenParser():
+    def __init__(self):
+        """
+        Initialize MedGen Parser
+        """
+        self._filenames = [
+            'mim_categories.txt'
+        ]
+
+    @property
+    def filenames(self):
+        """
+        Get MedGen filenames
+
+        Returns
+        -------
+        filename : str
+            the names of the MedGen output files
+        """
+        return self._filenames
+
+    def parse_medgen(self, source_dp, output_dp):
+        """
+        Parse MedGen files
+
+        Parameters
+        ----------
+        source_dp : str
+            The path to the source directory
+        output_dp : str
+            The path to the output directory
+        """
+        print_section_header(
+            "Parsing MedGen files (%s)" %
+            (bcolors.OKGREEN + source_dp + '/medgen_omim_mappings.txt.gz' + bcolors.ENDC)
+        )
+        start = timer()
+        nb_entries = 0
+
+        output_fd = SetWriter(join(output_dp, 'mim_categories.txt'))
+        input_fp = join(source_dp, 'medgen_omim_mappings.txt.gz' )
+        with gzip.open(input_fp, 'rt') as input_fd:
+            for line in input_fd:
+                if line.startswith('#'):
+                    continue
+                parts = line.strip().split('|')
+                mim = parts[1]
+                mim_cat = sanatize_text(parts[9])
+                
+                output_fd.write(f'{mim}\tCATEGORY\t{mim_cat}\n')
+
+        output_fd.close()
+        nb_entries += 1
         print(done_sym + "Processed (%d) files. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)

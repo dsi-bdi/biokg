@@ -1,7 +1,8 @@
 from biolink import KEGGLinker, SiderLinker
-from os import makedirs
+from os import makedirs, listdir, remove, walk
 from os.path import join, isdir
 from shutil import copy
+import gzip
 
 kegg_linker = KEGGLinker()
 sider_linker = SiderLinker()
@@ -15,6 +16,7 @@ protein_properties_root = join(properties_root, 'protein')
 pathway_properties_root = join(properties_root, 'pathway')
 disease_properties_root = join(properties_root, 'disease')
 cell_properties_root = join(properties_root, 'cell')
+mim_properties_root = join(properties_root, 'mim')
 other_root = join(output_root, 'other')
 
 makedirs(output_root) if not isdir(output_root) else None
@@ -26,7 +28,9 @@ makedirs(protein_properties_root) if not isdir(protein_properties_root) else Non
 makedirs(pathway_properties_root) if not isdir(pathway_properties_root) else None
 makedirs(disease_properties_root) if not isdir(disease_properties_root) else None
 makedirs(cell_properties_root) if not isdir(cell_properties_root) else None
+makedirs(mim_properties_root) if not isdir(mim_properties_root) else None
 makedirs(other_root) if not isdir(other_root) else None
+
 
 def get_all_proteins():
     """
@@ -114,15 +118,18 @@ def get_all_mesh_diseases():
     set
         the set of mesh diseases to include in the kg
     """
-    mesh_meta = join(data_root, 'mesh', 'mesh_metadata.txt')
+    files = [
+        join(data_root, 'mesh', 'mesh_disease_meta.txt'),
+        join(data_root, 'mesh', 'mesh_scr_disease_meta.txt')
+    ]
 
     mesh_diseases = set()
-
-    with open(mesh_meta, 'r') as fd:
-        for line in fd:
-            disease, meta, value = line.strip().split('\t')
-            if meta == 'TYPE' and (value == 'DISEASE' or value == 'SCR_DISEASE'):
-                mesh_diseases.add(disease)
+    for fp in files:
+        with open(fp, 'r') as fd:
+            for line in fd:
+                disease, meta, value = line.strip().split('\t')
+                if meta == 'TYPE':
+                    mesh_diseases.add(disease)
 
     return mesh_diseases
 
@@ -270,6 +277,9 @@ def get_all_protein_sequence_annotations(protein_set):
         for line in fd:
             s, p, o = line.strip().split('\t')
             if p in annotation_output_files and s in protein_set:
+                if p == 'RELATED_MIM':
+                    o = o.split(':')[1]
+                    line = f'{s}\t{p}\t{o}\n'
                 annotation_output_files[p].write(line)
 
     for fd in annotation_output_files.values():
@@ -563,7 +573,7 @@ def get_all_drug_pathway_associations(drug_set):
 
     ctd_pathways = [
         join(data_root, 'ctd', 'ctd_drug_reactome_pathway_association.txt'),
-        join(data_root, 'ctd', 'ctd_drug_reactome_pathway_association.txt')
+        join(data_root, 'ctd', 'ctd_drug_kegg_pathway_association.txt')
     ]
     db_pathways = join(data_root, 'drugbank', 'db_pathways.txt')
     dpas = set()
@@ -738,6 +748,7 @@ def get_all_disease_pathway_associations(disease_set):
         the list of unique disease pathway associations
     """
     kegg_links = join(data_root, 'kegg', 'disease_pathway.txt')
+
     ddis = set()
 
     with open(kegg_links, 'r') as fd:
@@ -875,15 +886,21 @@ def get_all_protein_expressions(protein_set):
     # for protein, tissue in expression:
     #     if protein in protein_set:
     #         unique_triples.append((protein, 'Protein_Expression', tissue))
+    uniprot_meta_dp = join(meta_root, 'uniprot')
+    makedirs(uniprot_meta_dp) if not isdir(uniprot_meta_dp) else None
+    level_output = open(join(uniprot_meta_dp, 'protein_expression_level.txt'), 'w')
     for protein, tissue in low_expression:
         if protein in protein_set:
             unique_triples.append((protein, 'PROTEIN_EXPRESSED_IN', tissue))
+            level_output.write(f'{protein}\tPROTEIN_EXPRESSED_IN\t{tissue}\tLOW\n')
     for protein, tissue in medium_expression:
         if protein in protein_set:
             unique_triples.append((protein, 'PROTEIN_EXPRESSED_IN', tissue))
+            level_output.write(f'{protein}\tPROTEIN_EXPRESSED_IN\t{tissue}\tMEDIUM\n')
     for protein, tissue in high_expression:
         if protein in protein_set:
             unique_triples.append((protein, 'PROTEIN_EXPRESSED_IN', tissue))
+            level_output.write(f'{protein}\tPROTEIN_EXPRESSED_IN\t{tissue}\tHIGH\n')
 
     structure_triples = []
     for cell, tissue in tissue_structure:
@@ -952,6 +969,8 @@ def write_uniprot_metadata():
     for fd in meta_output_files.values():
         fd.close()
 
+    
+
 
 def write_drugbank_metadata():
     drugbank_meta_dp = join(meta_root, 'drugbank')
@@ -1006,19 +1025,40 @@ def write_mesh_metadata():
         'NAME': open(join(mesh_meta_dp, 'mesh_name.txt'), 'w'),
         'TYPE': open(join(mesh_meta_dp, 'mesh_type.txt'), 'w')
     }
+    files = [
+        join(data_root, 'mesh', 'mesh_disease_meta.txt'),
+        join(data_root, 'mesh', 'mesh_scr_disease_meta.txt')
+    ]
+    for fp in files:
+        with open(fp, 'r') as fd:
+            for line in fd:
+                s, p, o = line.strip().split('\t')
 
-    with open(join(data_root, 'mesh', 'mesh_metadata.txt'), 'r') as fd:
-        for line in fd:
-            s, p, o = line.strip().split('\t')
-
-            # Fail if metadata type is not in the map
-            if p not in meta_output_files:
-                raise Exception(f'Predicate not recognized {p}')
-            
-            meta_output_files[p].write(line)
+                # Fail if metadata type is not in the map
+                if p not in meta_output_files:
+                    raise Exception(f'Predicate not recognized {p}')
+                
+                meta_output_files[p].write(line)
     
     for fd in meta_output_files.values():
         fd.close()
+
+
+def copy_folder(src_folder, dst_folder, included_files=[]):
+    for f in listdir(src_folder):
+        if f in included_files:
+            copy(join(src_folder, f), dst_folder)
+
+
+def compress_folder(folder):
+    for root, dirs, files in walk(folder):
+        for fp in files:
+            src_fp = join(root, fp)
+            dst_fp = join(root, fp+'.gz')
+            with open(src_fp, 'rb') as f_in, gzip.open(dst_fp, 'wb') as f_out:
+                f_out.writelines(f_in)
+            remove(src_fp)
+
 
 protein_set = get_all_proteins()
 write_uniprot_metadata()
@@ -1105,3 +1145,120 @@ write_triples(triples, join(disease_properties_root, 'disease_tree.txt'))
 
 write_protein_cellline_expressions(protein_set)
 
+copy(
+    join(data_root, 'medgen', 'mim_categories.txt'),
+    mim_properties_root
+)
+#Copy Other datasets
+other_ctd = join(other_root, 'ctd')
+makedirs(other_ctd) if not isdir(other_ctd) else None
+copy_folder(
+    join(data_root, 'ctd'),
+    other_ctd,
+    included_files = [
+        'ctd_disease_biological_process.txt',
+        'ctd_disease_cellular_component.txt',
+        'ctd_disease_molecular_function.txt',
+        'ctd_drug_phenotype.txt',
+        'ctd_drug_protein_interactions.txt',
+        'ctd_disease_kegg_pathway_association.txt',
+        'ctd_disease_reactome_pathway_association.txt'
+    ]
+)
+
+other_cello = join(other_root, 'cellosaurus')
+makedirs(other_cello) if not isdir(other_cello) else None
+copy_folder(
+    join(data_root, 'cellosaurus'),
+    other_cello,
+    included_files = [
+        'cl_cat.txt',
+        'cl_geo.txt',
+        'cl_map.txt',
+        'cl_pmid.txt'
+    ]
+)
+
+other_drugbank = join(other_root, 'drugbank')
+makedirs(other_drugbank) if not isdir(other_drugbank) else None
+copy_folder(
+    join(data_root, 'drugbank'),
+    other_drugbank,
+    included_files = [
+        'db_mechanism_or_action.txt',
+        'db_mesh.txt'
+    ]
+)
+
+other_hpa = join(other_root, 'hpa')
+makedirs(other_hpa) if not isdir(other_hpa) else None
+copy_folder(
+    join(data_root, 'hpa'),
+    other_hpa,
+    included_files = [
+        'hpa_antibodies.txt'
+    ]
+)
+
+other_kegg = join(other_root, 'kegg')
+makedirs(other_kegg) if not isdir(other_kegg) else None
+copy_folder(
+    join(data_root, 'kegg'),
+    other_kegg,
+    included_files = [
+        'gene_network.txt',
+        'glycan_pathway.txt',
+        'network_disease.txt',
+        'network_drug.txt',
+        'network_pathway.txt',
+        'disease_meta.txt'
+    ]
+)
+
+other_mesh = join(other_root, 'mesh')
+makedirs(other_mesh) if not isdir(other_mesh) else None
+copy_folder(
+    join(data_root, 'mesh'),
+    other_mesh,
+    included_files = [
+        'mesh_disease_concept_heading.txt',
+        'mesh_drug_concept_heading.txt',
+        'mesh_scr_drug_meta.txt',
+        'mesh_drug_tree.txt',
+        'mesh_drug_meta.txt'
+    ]
+)
+
+other_phos = join(other_root, 'phosphosite')
+makedirs(other_phos) if not isdir(other_phos) else None
+copy_folder(
+    join(data_root, 'phosphosite'),
+    other_phos,
+    included_files = [
+        'phosphorylation_site.txt'
+    ]
+)
+
+other_reactome = join(other_root, 'reactome')
+makedirs(other_reactome) if not isdir(other_reactome) else None
+copy_folder(
+    join(data_root, 'reactome'),
+    other_reactome,
+    included_files = [
+        'reactome_go_mapping.txt'
+    ]
+)
+
+other_sider = join(other_root, 'sider')
+makedirs(other_sider) if not isdir(other_sider) else None
+copy_folder(
+    join(data_root, 'sider'),
+    other_sider,
+    included_files = [
+        'sider_indications_meta.txt',
+        'sider_effects_meta.txt'
+    ]
+)
+
+print('Compressing output')
+compress_folder(output_root)

@@ -223,7 +223,7 @@ def download_kegg_data(sources_dp, srcs_cp):
     srcs_cp : RawConfigParser
         source urls config parser
     """
-    print_section_header("Downloading SIDER data files")
+    print_section_header("Downloading KEGG data files")
 
     disease_fp = join(sources_dp, "diseases.txt")
     
@@ -241,10 +241,26 @@ def download_mesh_data(sources_dp, srcs_cp):
     srcs_cp : RawConfigParser
         source urls config parser
     """
-    print_section_header("Downloading SIDER data files")
+    print_section_header("Downloading MeSH data files")
 
     disease_fp = join(sources_dp, "mesh_diseases.txt")
     supp_fp = join(sources_dp, "mesh_supp_concepts.xml")
     download_file_md5_check(srcs_cp["mesh"]["mesh_diseases"], disease_fp)
     download_file_md5_check(srcs_cp["mesh"]["mesh_supp_concepts"], supp_fp)
+    print_bold_line()
+
+
+def download_medgen_data(sources_dp, srcs_cp):
+    """ Download sider database files
+    Parameters
+    ----------
+    sources_dp : str
+        the sources directory path
+    srcs_cp : RawConfigParser
+        source urls config parser
+    """
+    print_section_header("Downloading MedGen data files")
+
+    disease_fp = join(sources_dp, "medgen_omim_mappings.txt.gz")
+    download_file_md5_check(srcs_cp["medgen"]["medgen_omim_mappings"], disease_fp)
     print_bold_line()
