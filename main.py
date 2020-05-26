@@ -60,6 +60,8 @@ def main():
     # download sider source data
     download_sider_data(sources_dp=sources_dp, srcs_cp=sources_urls)
 
+    # download sider source data
+    download_medgen_data(sources_dp=sources_dp, srcs_cp=sources_urls)
     # download drugbank source data
     if len(sys.argv) >= 3:
         db_user = sys.argv[1]
@@ -235,6 +237,21 @@ def main():
             export_file_md5(ofp)
     else:
         print(inf_sym + "Sider processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
+    
+    # ----------------------------------------------------------------------
+    # processing MedGen files
+    medgen_parser = MedgenParser()
+    medgen_dp = join(preprocessed_dp, 'medgen')
+    mkdir(medgen_dp) if not isdir(medgen_dp) else None
+    medgen_fps = [join(medgen_dp, fn) for fn in medgen_parser.filenames]
+    invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in medgen_fps]))
+
+    if invalid_md5:
+        medgen_parser.parse_medgen(sources_dp, medgen_dp)
+        for ofp in medgen_fps:
+            export_file_md5(ofp)
+    else:
+        print(inf_sym + "MedGen processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
 
 if __name__ == '__main__':
     main()
