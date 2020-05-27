@@ -1045,6 +1045,7 @@ def compress_folder(folder):
             remove(src_fp)
 
 
+
 def compile_graph():
     # Get the set of proteins, drugs and diseases to use and write metadata
     print('Writing Metadata')
@@ -1257,6 +1258,11 @@ def compile_graph():
     # Gzip output
     print('Compressing output')
     compress_folder(output_root)
+
+    #Copy readmes to output
+    copy('links_description.txt', join(links_root, 'README.txt'))
+    copy('properties_description.txt', join(properties_root, 'README.txt'))
+    copy('meta_description.txt', join(meta_root, 'README.txt'))
 
 
 if __name__ == '__main__':
