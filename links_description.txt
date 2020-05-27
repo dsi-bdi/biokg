@@ -1,0 +1,194 @@
+BIOKG biomedical knowledge graph
+All files are gzipped and tab seperated
+
+Links
+The links folder contains the main relationships which make up the BIOKG
+
+################################################################################
+# ppi.txt.gz                                                                   #
+################################################################################
+
+# Descrption:
+Contains protein protein interactions covering the entire range of proteins contained within the BioKG.
+Per species ppi files are also available in the PPI_BY_SPECIES folder.
+
+# Format:
+<uniprot_acc>   PPI <uniprot_acc>
+
+# Sources:
+Uniprot
+IntAct
+Reactome
+
+
+################################################################################
+# phosphorylation.txt.gz                                                       #
+################################################################################
+
+# Description:
+Contains kinase substrate phosphorylation
+
+# Format:
+<kinase_protein>    PHOSPHORYLATION <substrate_protein>
+
+# Sources:
+PhosphoSitePlus
+
+################################################################################
+# dpi.txt.gz                                                                   #
+################################################################################
+
+# Description:
+Contains drug protein interactions
+
+# Format:
+<drugbank_id>  DPI <uniprot_acc>
+
+# Sources:
+Uniprot
+Drugbank
+KEGG
+
+################################################################################
+# drug_protein_function.txt.gz                                                 #
+################################################################################
+
+# Description:
+Contains drug protein interactions with the predicate indicating the function
+* NOTE: These relationships are also contained within the dpi.txt.gz files as generic DPI links
+
+# Format:
+<drugbank_id>  DRUG_CARRIER <uniprot_acc>
+<drugbank_id>  DRUG_ENZYME <uniprot_acc>
+<drugbank_id>  DRUG_TRANSPORTER <uniprot_acc>
+<drugbank_id>  DRUG_TARGET <uniprot_acc>
+# Sources:
+Drugbank
+
+################################################################################
+# protein_pathway.txt.gz                                                       #
+################################################################################
+
+# Description:
+Contains relationshiphips between proteins and pathways
+
+# Format:
+<uniprot_acc>  PROTEIN_PATHWAY_ASSOCIATION <pathway>
+
+# Sources:
+Uniprot
+Drugbank
+CTD
+Reactome
+KEGG
+
+################################################################################
+# protein_complex.txt.gz                                                       #
+################################################################################
+
+# Description:
+Contains relationshiphips between proteins and complexes
+
+# Format:
+<uniprot_acc>  MEMBER_OF_COMPLEX <complex>
+
+# Sources:
+Reactome
+
+################################################################################
+# protein_disease.txt.gz                                                       #
+################################################################################
+
+# Description:
+Contains relationshiphips between proteins and diseases
+
+# Format:
+<uniprot_acc>  MEMBER_OF_COMPLEX <mesh_id>
+
+# Sources:
+Uniprot
+KEGG
+CTD
+
+################################################################################
+# ddi.txt.gz                                                                   #
+################################################################################
+
+# Description:
+Contains drug drug interactions
+
+# Format:
+<drugbank_id>  DDI <drugbank_id>
+
+# Sources:
+Drugbank
+
+################################################################################
+# drug_disease.txt.gz                                                          #
+################################################################################
+
+# Description:
+Contains drug disease associations
+
+# Format:
+<drugbank_id>  DRUG_DISEASE_ASSOCIATION <mesh_id>
+
+# Sources:
+KEGG
+CTD
+
+################################################################################
+# drug_pathway.txt.gz                                                          #
+################################################################################
+
+# Description:
+Contains drug pathway associations
+
+# Format:
+<drugbank_id>  DRUG_PATHWAY_ASSOCIATION <pathway>
+
+# Sources:
+Drugbank
+KEGG
+CTD
+
+################################################################################
+# disease_pathway.txt.gz                                                       #
+################################################################################
+
+# Description:
+Contains disease pathway associations
+
+# Format:
+<mesh_id>  DISEASE_PATHWAY_ASSOCIATION <pathway>
+
+# Sources:
+KEGG
+
+################################################################################
+# complex_pathway.txt.gz                                                       #
+################################################################################
+
+# Description:
+Contains relationships between complexes and pathways
+
+# Format:
+<complex_id>  MEMBER_OF_PATHWAY <pathway>
+
+# Sources:
+Reactome
+
+################################################################################
+# complex_top_level_pathway.txt.gz                                             #
+################################################################################
+
+# Description:
+Contains relationships between complexes and their top level pathways
+
+# Format:
+<complex_id>  MEMBER_OF_TOP_LEVEL_PATHWAY <pathway>
+
+# Sources:
+Reactome
+
+

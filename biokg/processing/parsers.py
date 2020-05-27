@@ -1633,9 +1633,16 @@ class ReactomeParser:
                 org = parts[12].split(':')[1]
                 uniprot_id = parts[1]
                 rel_type = parts[8]
+                rel_name = ''
+                if rel_type == 'P':
+                    rel_name = 'GO_BP'
+                elif rel_type == 'C':
+                    rel_name = 'GO_CC'
+                else:
+                    rel_name = 'GO_MF'
                 go_id = parts[4]
                 reactome_id = parts[5].split(':')[1]
-                output_fd.write(f'{uniprot_id}\t{rel_type}\t{go_id}\t{reactome_id}\t{org}\n')
+                output_fd.write(f'{uniprot_id}\t{rel_name}\t{go_id}\t{reactome_id}\t{org}\n')
 
         output_fd.close()
 
