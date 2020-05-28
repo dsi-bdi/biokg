@@ -1,0 +1,278 @@
+BIOKG biomedical knowledge graph
+All files are gzipped and tab seperated
+
+Properties
+The properties folder contains properties of the entities in the BIOKG
+
+################################################################################
+# protein/protein_expression.txt.gz                                            #
+################################################################################
+
+# Description:
+Contains the tissues each protein is expressed in
+
+# Format:
+<uniprot_acc>  PROTEIN_EXPRESSED_IN <hpa_tissue>
+
+# Sources:
+HPA
+
+################################################################################
+# protein/protein_go_biological_process.txt.gz                                 #
+################################################################################
+
+# Description:
+Contains go biological process annotations of proteins
+
+# Format:
+<uniprot_acc>  GO_BP <GO_id>
+
+# Sources:
+Uniprot
+
+################################################################################
+# protein/protein_go_cellular_component.txt.gz                                 #
+################################################################################
+
+# Description:
+Contains go cellular component annotations of proteins
+
+# Format:
+<uniprot_acc>  GO_CC <GO_id>
+
+# Sources:
+Uniprot
+
+################################################################################
+# protein/protein_go_molecular_function.txt.gz                                 #
+################################################################################
+
+# Description:
+Contains go molecular function annotations of proteins
+
+# Format:
+<uniprot_acc>  GO_MF <GO_id>
+
+# Sources:
+Uniprot
+
+################################################################################
+# protein/protein_mim.txt.gz                                 #
+################################################################################
+
+# Description:
+Contains mims related to proteins
+
+# Format:
+<uniprot_acc>  RELATED_MIM <mim_id>
+
+# Sources:
+Uniprot
+
+################################################################################
+# protein/sequence_annotations/protein_active_site.txt.gz                      #
+################################################################################
+
+# Description:
+Contains active site sequence annotations of proteins in InterPro
+
+# Format:
+<uniprot_acc>  ACTIVE_SITE <IPO_ID>
+
+# Sources:
+Uniprot
+
+################################################################################
+# protein/sequence_annotations/protein_binding_site.txt.gz                     #
+################################################################################
+
+# Description:
+Contains binding site sequence annotations of proteins in InterPro
+
+# Format:
+<uniprot_acc>  BINDING_SITE <IPO_ID>
+
+# Sources:
+Uniprot
+
+################################################################################
+# protein/sequence_annotations/protein_conserved_site.txt.gz                   #
+################################################################################
+
+# Description:
+Contains conserved site sequence annotations of proteins in InterPro
+
+# Format:
+<uniprot_acc>  CONSERVED_SITE <IPO_ID>
+
+# Sources:
+Uniprot
+
+################################################################################
+# protein/sequence_annotations/protein_domain.txt.gz                           #
+################################################################################
+
+# Description:
+Contains domain sequence annotations of proteins in InterPro
+
+# Format:
+<uniprot_acc>  DOMAIN <IPO_ID>
+
+# Sources:
+Uniprot
+
+################################################################################
+# protein/sequence_annotations/protein_family.txt.gz                           #
+################################################################################
+
+# Description:
+Contains family sequence annotations of proteins in InterPro
+
+# Format:
+<uniprot_acc>  FAMILY <IPO_ID>
+
+# Sources:
+Uniprot
+
+################################################################################
+# protein/sequence_annotations/protein_homologous_superfamily.txt.gz           #
+################################################################################
+
+# Description:
+Contains homologous superfamily sequence annotations of proteins in InterPro
+
+# Format:
+<uniprot_acc>  HOMOLOGOUS_SUPERFAMILY <IPO_ID>
+
+# Sources:
+Uniprot
+
+################################################################################
+# protein/sequence_annotations/protein_ptm.txt.gz                              #
+################################################################################
+
+# Description:
+Contains post transational modification sequence annotations of proteins in InterPro
+
+# Format:
+<uniprot_acc>  PTM <IPO_ID>
+
+# Sources:
+Uniprot
+
+################################################################################
+# protein/sequence_annotations/protein_repeat.txt.gz                           #
+################################################################################
+
+# Description:
+Contains repeat sequence annotations of proteins in InterPro
+
+# Format:
+<uniprot_acc>  REPEAT <IPO_ID>
+
+# Sources:
+Uniprot
+
+################################################################################
+# protein/sequence_annotations/protein_prosite_sequence_annotation.txt.gz      #
+################################################################################
+
+# Description:
+Contains sequence annotations of proteins in ProSite
+
+# Format:
+<uniprot_acc>  PS_ANNOTATION <PROSITE_ID>
+
+# Sources:
+Uniprot
+
+################################################################################
+# drug/drug_atc_codes.txt.gz                                                   #
+################################################################################
+
+# Description:
+Contains drug atc codes
+
+# Format:
+<drugbank_id>  DRUG_ATC_CODE <atc_code>
+
+# Sources:
+Drugbank
+
+################################################################################
+# drug/drug_sideeffect.txt.gz                                                  #
+################################################################################
+
+# Description:
+Contains drug sideeffect associations
+
+# Format:
+<drugbank_id>  DRUG_SIDEEFFECT_ASSOCIATION <meddra_id>
+
+# Sources:
+Sider
+
+################################################################################
+# drug/drug_indication.txt.gz                                                  #
+################################################################################
+
+# Description:
+Contains drug indications
+
+# Format:
+<drugbank_id>  DRUG_INDICATION_ASSOCIATION <meddra_id>
+
+# Sources:
+Sider
+
+################################################################################
+# cell/cell_tissue_membership.txt.gz                                           #
+################################################################################
+
+# Description:
+Contains categorises the tissues cells are part of
+
+# Format:
+<cell>  PART_OF_TISSUE <tissue>
+
+# Sources:
+HPA
+
+################################################################################
+# disease/disease_tree.txt.gz                                                  #
+################################################################################
+
+# Description:
+Contains mesh heading tree for each disease
+
+# Format:
+<mesh_id>  DISEASE_SUPERGRP <mesh_heading_id>
+
+# Sources:
+MeSH
+
+################################################################################
+# pathway/pathway_category.txt.gz                                              #
+################################################################################
+
+# Description:
+Contains drugbank pathway categories
+
+# Format:
+<pathway_id>  PATHWAY_CATEGORY <category>
+
+# Sources:
+Drugbank
+
+################################################################################
+# mim/mim_categories.txt.gz                                                    #
+################################################################################
+
+# Description:
+Contains medgen mim categories
+
+# Format:
+<mim_id>  CATEGORY <category>
+
+# Sources:
+MedGen

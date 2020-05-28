@@ -1,7 +1,8 @@
 from biolink import KEGGLinker, SiderLinker
-from os import makedirs
+from os import makedirs, listdir, remove, walk
 from os.path import join, isdir
 from shutil import copy
+import gzip
 
 kegg_linker = KEGGLinker()
 sider_linker = SiderLinker()
@@ -15,6 +16,7 @@ protein_properties_root = join(properties_root, 'protein')
 pathway_properties_root = join(properties_root, 'pathway')
 disease_properties_root = join(properties_root, 'disease')
 cell_properties_root = join(properties_root, 'cell')
+mim_properties_root = join(properties_root, 'mim')
 other_root = join(output_root, 'other')
 
 makedirs(output_root) if not isdir(output_root) else None
@@ -26,7 +28,9 @@ makedirs(protein_properties_root) if not isdir(protein_properties_root) else Non
 makedirs(pathway_properties_root) if not isdir(pathway_properties_root) else None
 makedirs(disease_properties_root) if not isdir(disease_properties_root) else None
 makedirs(cell_properties_root) if not isdir(cell_properties_root) else None
+makedirs(mim_properties_root) if not isdir(mim_properties_root) else None
 makedirs(other_root) if not isdir(other_root) else None
+
 
 def get_all_proteins():
     """
@@ -114,15 +118,18 @@ def get_all_mesh_diseases():
     set
         the set of mesh diseases to include in the kg
     """
-    mesh_meta = join(data_root, 'mesh', 'mesh_metadata.txt')
+    files = [
+        join(data_root, 'mesh', 'mesh_disease_meta.txt'),
+        join(data_root, 'mesh', 'mesh_scr_disease_meta.txt')
+    ]
 
     mesh_diseases = set()
-
-    with open(mesh_meta, 'r') as fd:
-        for line in fd:
-            disease, meta, value = line.strip().split('\t')
-            if meta == 'TYPE' and (value == 'DISEASE' or value == 'SCR_DISEASE'):
-                mesh_diseases.add(disease)
+    for fp in files:
+        with open(fp, 'r') as fd:
+            for line in fd:
+                disease, meta, value = line.strip().split('\t')
+                if meta == 'TYPE':
+                    mesh_diseases.add(disease)
 
     return mesh_diseases
 
@@ -270,6 +277,9 @@ def get_all_protein_sequence_annotations(protein_set):
         for line in fd:
             s, p, o = line.strip().split('\t')
             if p in annotation_output_files and s in protein_set:
+                if p == 'RELATED_MIM':
+                    o = o.split(':')[1]
+                    line = f'{s}\t{p}\t{o}\n'
                 annotation_output_files[p].write(line)
 
     for fd in annotation_output_files.values():
@@ -329,6 +339,7 @@ def get_all_protein_drug_interactions(protein_set, drug_set):
     carriers = set()
     enzymes = set()
     transporters = set()
+    targets = set()
     with open(kegg_links, 'r') as fd:
         for line in fd:
             s, p, o = line.strip().split('\t')
@@ -347,46 +358,44 @@ def get_all_protein_drug_interactions(protein_set, drug_set):
             s, p, o = line.strip().split('\t')
             if p == 'TARGET_OF_DRUG':
                 pdis.add((s, o))
-            
+
     with open(db_targets, 'r') as fd:
         for line in fd:
             s, p, o = line.strip().split('\t')[:3]
             pdis.add((o, s))
-            
+
             if p == 'DRUG_CARRIER':
                 carriers.add((o, s))
             elif p == 'DRUG_ENZYME':
                 enzymes.add((o, s))
             elif p == 'DRUG_TRANSPORTER':
                 transporters.add((o, s))
-
-    # with open(ctd_drug_protein, 'r') as fd:
-    #     for line in fd:
-    #         s, p, o, prov = line.strip().split('\t')[:4]
-    #         if prov == 'CURATED':
-    #             pdis.add((o, s))
+            else:
+                targets.add((o, s))
 
     unique_triples = []
+    function_triples = []
     for protein, drug in pdis:
         if protein in protein_set and drug in drug_set:
             unique_triples.append((drug, 'DPI', protein))
 
-    unique_carriers = []
+    for protein, drug in targets:
+        if protein in protein_set and drug in drug_set:
+            function_triples.append((drug, 'DRUG_TARGET', protein))
+
     for protein, drug in carriers:
         if protein in protein_set and drug in drug_set:
-            unique_carriers.append((drug, 'DRUG_CARRIER', protein))
-    
-    unique_enzymes = []
+            function_triples.append((drug, 'DRUG_CARRIER', protein))
+
     for protein, drug in enzymes:
         if protein in protein_set and drug in drug_set:
-            unique_enzymes.append((drug, 'DRUG_ENZYME', protein))
+            function_triples.append((drug, 'DRUG_ENZYME', protein))
 
-    unique_transporters = []
     for protein, drug in transporters:
         if protein in protein_set and drug in drug_set:
-            unique_transporters.append((drug, 'DRUG_TRANSPORTER', protein))
-    
-    return unique_triples, unique_carriers, unique_enzymes, unique_transporters
+            function_triples.append((drug, 'DRUG_TRANSPORTER', protein))
+
+    return unique_triples, function_triples
 
 
 def get_all_protein_disease_associations(protein_set, disease_set):
@@ -424,13 +433,6 @@ def get_all_protein_disease_associations(protein_set, disease_set):
                 for d in mesh_diseases[0]:
                     pdis.add((p, d))
 
-    # with open(uniprot_facts, 'r') as fd:
-    #     for line in fd:
-    #         s, p, o = line.strip().split('\t')
-    #         if p == 'RELATED_DISEASE':
-    #             o = o.split(':')[1]
-    #             pdis.add((s, o))
-
     with open(ctd_protein_disease, 'r') as fd:
         for line in fd:
             s, p, o, prov = line.strip().split('\t')[:4]
@@ -465,7 +467,7 @@ def get_all_protein_pathway_associations(protein_set):
         join(data_root, 'ctd', 'ctd_protein_reactome_pathway_association.txt'),
         join(data_root, 'ctd', 'ctd_protein_kegg_pathway_association.txt')
     ]
-    reactome_iso_pathway = join(data_root, 'reactome', 'reactome_isoform_pathway.txt')
+
     db_pathways = join(data_root, 'drugbank', 'db_pathways.txt')
 
     ppis = set()
@@ -497,12 +499,6 @@ def get_all_protein_pathway_associations(protein_set):
                 s, p, o, prov = line.strip().split('\t')
                 if prov == 'CURATED':
                     ppis.add((s, o))
-
-    with open(reactome_iso_pathway, 'r') as fd:
-        for line in fd:
-            s, p, o = line.strip().split('\t')
-
-            ppis.add((s.split('-')[0], o))
 
     unique_triples = []
     for protein, pathway in ppis:
@@ -563,7 +559,7 @@ def get_all_drug_pathway_associations(drug_set):
 
     ctd_pathways = [
         join(data_root, 'ctd', 'ctd_drug_reactome_pathway_association.txt'),
-        join(data_root, 'ctd', 'ctd_drug_reactome_pathway_association.txt')
+        join(data_root, 'ctd', 'ctd_drug_kegg_pathway_association.txt')
     ]
     db_pathways = join(data_root, 'drugbank', 'db_pathways.txt')
     dpas = set()
@@ -692,7 +688,7 @@ def get_all_drug_side_effects(drug_set):
     for drug, indication in indications:
         if drug in drug_set:
             unique_indications.append((drug, 'DRUG_INDICATION_ASSOCIATION', indication))
-    return unique_triples, unique_indications 
+    return unique_triples, unique_indications
 
 
 def get_all_drug_atc_codes(drug_set):
@@ -738,6 +734,7 @@ def get_all_disease_pathway_associations(disease_set):
         the list of unique disease pathway associations
     """
     kegg_links = join(data_root, 'kegg', 'disease_pathway.txt')
+
     ddis = set()
 
     with open(kegg_links, 'r') as fd:
@@ -824,7 +821,7 @@ def get_protein_complex_rels(protein_set):
     protein_complex = set()
     with open(join(data_root, 'reactome', 'reactome_protein_complex_rels.txt'), 'r') as fd:
         for line in fd:
-            s, p, o = line.strip().split('\t')[:3]
+            s, _, o = line.strip().split('\t')[:3]
             protein_complex.add((s, o))
 
     unique_triples = []
@@ -875,15 +872,21 @@ def get_all_protein_expressions(protein_set):
     # for protein, tissue in expression:
     #     if protein in protein_set:
     #         unique_triples.append((protein, 'Protein_Expression', tissue))
+    uniprot_meta_dp = join(meta_root, 'uniprot')
+    makedirs(uniprot_meta_dp) if not isdir(uniprot_meta_dp) else None
+    level_output = open(join(uniprot_meta_dp, 'protein_expression_level.txt'), 'w')
     for protein, tissue in low_expression:
         if protein in protein_set:
             unique_triples.append((protein, 'PROTEIN_EXPRESSED_IN', tissue))
+            level_output.write(f'{protein}\tPROTEIN_EXPRESSED_IN\t{tissue}\tLOW\n')
     for protein, tissue in medium_expression:
         if protein in protein_set:
             unique_triples.append((protein, 'PROTEIN_EXPRESSED_IN', tissue))
+            level_output.write(f'{protein}\tPROTEIN_EXPRESSED_IN\t{tissue}\tMEDIUM\n')
     for protein, tissue in high_expression:
         if protein in protein_set:
             unique_triples.append((protein, 'PROTEIN_EXPRESSED_IN', tissue))
+            level_output.write(f'{protein}\tPROTEIN_EXPRESSED_IN\t{tissue}\tHIGH\n')
 
     structure_triples = []
     for cell, tissue in tissue_structure:
@@ -914,6 +917,7 @@ def write_triples(triples, output_fp):
         for s, p, o in triples:
             output.write(f'{s}\t{p}\t{o}\n')
 
+
 def filter_ctd_drug_protein(protein_set):
     ctd_drug_protein = join(data_root, 'ctd', 'ctd_drug_protein_interactions.txt')
     ctd_drug_protein_filtered = join(links_root, 'ctd_drug_protein_interactions_SWISSPORT.txt' )
@@ -925,11 +929,10 @@ def filter_ctd_drug_protein(protein_set):
                     output_fd.write(line)
 
 
-
 def write_uniprot_metadata():
     uniprot_meta_dp = join(meta_root, 'uniprot')
     makedirs(uniprot_meta_dp) if not isdir(uniprot_meta_dp) else None
-    
+
     meta_output_files = {
         'NAME': open(join(uniprot_meta_dp, 'uniprot_name.txt'), 'w'),
         'SHORT_NAME': open(join(uniprot_meta_dp, 'uniprot_shortname.txt'), 'w'),
@@ -947,7 +950,7 @@ def write_uniprot_metadata():
             # Fail if metadata type is not in the map
             if p not in meta_output_files:
                 raise Exception(f'Predicate not recognized {p}')
-            
+
             meta_output_files[p].write(line)
     for fd in meta_output_files.values():
         fd.close()
@@ -956,7 +959,7 @@ def write_uniprot_metadata():
 def write_drugbank_metadata():
     drugbank_meta_dp = join(meta_root, 'drugbank')
     makedirs(drugbank_meta_dp) if not isdir(drugbank_meta_dp) else None
-    
+
     meta_output_files = {
         'NAME': open(join(drugbank_meta_dp, 'drugbank_name.txt'), 'w'),
         'SYNONYM': open(join(drugbank_meta_dp, 'drugbank_synonym.txt'), 'w'),
@@ -985,9 +988,9 @@ def write_drugbank_metadata():
                 # Fail if metadata type is not in the map
                 if p not in meta_output_files:
                     raise Exception(f'Predicate not recognized {p}')
-                
+
                 meta_output_files[p].write(line)
-    
+
     for fd in meta_output_files.values():
         fd.close()
 
@@ -998,110 +1001,269 @@ def write_drugbank_metadata():
                 if p == 'PATHWAY_CATEGORY':
                     output.write(line)
 
+
 def write_mesh_metadata():
     mesh_meta_dp = join(meta_root, 'mesh')
     makedirs(mesh_meta_dp) if not isdir(mesh_meta_dp) else None
-    
+
     meta_output_files = {
         'NAME': open(join(mesh_meta_dp, 'mesh_name.txt'), 'w'),
         'TYPE': open(join(mesh_meta_dp, 'mesh_type.txt'), 'w')
     }
+    files = [
+        join(data_root, 'mesh', 'mesh_disease_meta.txt'),
+        join(data_root, 'mesh', 'mesh_scr_disease_meta.txt')
+    ]
+    for fp in files:
+        with open(fp, 'r') as fd:
+            for line in fd:
+                s, p, o = line.strip().split('\t')
 
-    with open(join(data_root, 'mesh', 'mesh_metadata.txt'), 'r') as fd:
-        for line in fd:
-            s, p, o = line.strip().split('\t')
+                # Fail if metadata type is not in the map
+                if p not in meta_output_files:
+                    raise Exception(f'Predicate not recognized {p}')
 
-            # Fail if metadata type is not in the map
-            if p not in meta_output_files:
-                raise Exception(f'Predicate not recognized {p}')
-            
-            meta_output_files[p].write(line)
-    
+                meta_output_files[p].write(line)
+
     for fd in meta_output_files.values():
         fd.close()
 
-protein_set = get_all_proteins()
-write_uniprot_metadata()
-#protein_set = get_proteins_by_metadata('SPECIES', ['HUMAN'])
 
-drug_set = get_all_drugs()
-write_drugbank_metadata()
+def copy_folder(src_folder, dst_folder, included_files=[]):
+    for f in listdir(src_folder):
+        if f in included_files:
+            copy(join(src_folder, f), dst_folder)
 
-disease_set = get_all_mesh_diseases()
-write_mesh_metadata()
 
-triples = get_all_unique_ppi(protein_set)
-print(f'{len(triples)} protein protein interactions')
-write_triples(triples, join(links_root, 'ppi.txt'))
+def compress_folder(folder):
+    for root, dirs, files in walk(folder):
+        for fp in files:
+            src_fp = join(root, fp)
+            dst_fp = join(root, fp+'.gz')
+            with open(src_fp, 'rb') as f_in, gzip.open(dst_fp, 'wb') as f_out:
+                f_out.writelines(f_in)
+            remove(src_fp)
 
-write_ppi_by_species()
-get_all_protein_sequence_annotations(protein_set)
 
-triples = get_all_unique_phosphorylations(protein_set)
-print(f'{len(triples)} protein protein phosphorylations')
-write_triples(triples, join(links_root, 'phospohrylation.txt'))
 
-triples, cars, enzs, trans = get_all_protein_drug_interactions(protein_set, drug_set)
-print(f'{len(triples)} drug targets')
-write_triples(triples, join(links_root, 'dpi.txt'))
-write_triples(cars, join(links_root, 'drug_carriers.txt'))
-write_triples(enzs, join(links_root, 'drug_enzymes.txt'))
-write_triples(trans, join(links_root, 'drug_transporters.txt'))
+def compile_graph():
+    # Get the set of proteins, drugs and diseases to use and write metadata
+    print('Writing Metadata')
+    protein_set = get_all_proteins()
+    write_uniprot_metadata()
 
-triples = get_all_protein_pathway_associations(protein_set)
-print(f'{len(triples)} protein pathway associations')
-write_triples(triples, join(links_root, 'protein_pathway.txt'))
+    drug_set = get_all_drugs()
+    write_drugbank_metadata()
 
-triples = get_all_protein_disease_associations(protein_set, disease_set)
-print(f'{len(triples)} protein disease associations')
-write_triples(triples, join(links_root, 'protein_disease.txt'))
+    disease_set = get_all_mesh_diseases()
+    write_mesh_metadata()
 
-triples, tissue_structure = get_all_protein_expressions(protein_set)
-print(f'{len(triples)} protein tissue associations')
-write_triples(triples, join(protein_properties_root, 'protein_expression.txt'))
-write_triples(tissue_structure, join(cell_properties_root, 'cell_tissue_membership.txt'))
+    # Get Links
+    print('Writing Links')
+    triples = get_all_unique_ppi(protein_set)
+    print(f'{len(triples)} protein protein interactions')
+    write_triples(triples, join(links_root, 'ppi.txt'))
 
-triples = get_protein_complex_rels(protein_set)
-print(f'{len(triples)} protein complex rels')
-write_triples(triples, join(links_root, 'protein_complex.txt'))
+    write_ppi_by_species()
+    get_all_protein_sequence_annotations(protein_set)
 
-triples, tl_triples = get_complex_pathway_rels()
-print(f'{len(triples)} complex pathway rels')
-write_triples(triples, join(links_root, 'complex_pathway.txt'))
-write_triples(tl_triples, join(links_root, 'complex_top_level_pathway.txt'))
+    triples = get_all_unique_phosphorylations(protein_set)
+    print(f'{len(triples)} protein protein phosphorylations')
+    write_triples(triples, join(links_root, 'phospohrylation.txt'))
 
-triples = get_pathway_rels()
-print(f'{len(triples)} pathway rels')
-write_triples(triples, join(links_root, 'pathway_pathway.txt'))
+    triples, function_triples = get_all_protein_drug_interactions(protein_set, drug_set)
+    print(f'{len(triples)} drug targets')
+    write_triples(triples, join(links_root, 'dpi.txt'))
+    write_triples(function_triples, join(links_root, 'drug_protein_function.txt'))
 
-triples = get_all_drug_pathway_associations(drug_set)
-print(f'{len(triples)} drug pathway associations')
-write_triples(triples, join(links_root, 'drug_pathway.txt'))
+    triples = get_all_protein_pathway_associations(protein_set)
+    print(f'{len(triples)} protein pathway associations')
+    write_triples(triples, join(links_root, 'protein_pathway.txt'))
 
-triples = get_all_drug_drug_interactions(drug_set)
-print(f'{len(triples)} drug drug associations')
-write_triples(triples, join(links_root, 'ddi.txt'))
+    triples = get_all_protein_disease_associations(protein_set, disease_set)
+    print(f'{len(triples)} protein disease associations')
+    write_triples(triples, join(links_root, 'protein_disease.txt'))
 
-triples = get_all_drug_disease_associations(drug_set, disease_set)
-print(f'{len(triples)} drug disease associations')
-write_triples(triples, join(links_root, 'drug_disease.txt'))
+    triples, tissue_structure = get_all_protein_expressions(protein_set)
+    print(f'{len(triples)} protein tissue associations')
+    write_triples(triples, join(protein_properties_root, 'protein_expression.txt'))
+    write_triples(tissue_structure, join(cell_properties_root, 'cell_tissue_membership.txt'))
 
-triples, indication_triples = get_all_drug_side_effects(drug_set)
-print(f'{len(triples)} drug side effect associations')
-write_triples(triples, join(drug_properties_root, 'drug_sideeffect.txt'))
-write_triples(indication_triples, join(drug_properties_root, 'drug_indications.txt'))
+    triples = get_protein_complex_rels(protein_set)
+    print(f'{len(triples)} protein complex rels')
+    write_triples(triples, join(links_root, 'protein_complex.txt'))
 
-triples = get_all_drug_atc_codes(drug_set)
-print(f'{len(triples)} drug atc codes')
-write_triples(triples, join(drug_properties_root, 'drug_atc_codes.txt'))
+    triples, tl_triples = get_complex_pathway_rels()
+    print(f'{len(triples)} complex pathway rels')
+    write_triples(triples, join(links_root, 'complex_pathway.txt'))
+    write_triples(tl_triples, join(links_root, 'complex_top_level_pathway.txt'))
 
-triples = get_all_disease_pathway_associations(disease_set)
-print(f'{len(triples)} disease pathway associations')
-write_triples(triples, join(links_root, 'disease_pathway.txt'))
+    triples = get_pathway_rels()
+    print(f'{len(triples)} pathway rels')
+    reactome_meta = join(meta_root, 'reactome')
+    makedirs(reactome_meta) if not isdir(reactome_meta) else None
+    write_triples(triples, join(reactome_meta, 'pathway_parent.txt'))
 
-triples = get_disease_tree(disease_set)
-print(f'{len(triples)} disease tree')
-write_triples(triples, join(disease_properties_root, 'disease_tree.txt'))
+    triples = get_all_drug_pathway_associations(drug_set)
+    print(f'{len(triples)} drug pathway associations')
+    write_triples(triples, join(links_root, 'drug_pathway.txt'))
 
-write_protein_cellline_expressions(protein_set)
+    triples = get_all_drug_drug_interactions(drug_set)
+    print(f'{len(triples)} drug drug associations')
+    write_triples(triples, join(links_root, 'ddi.txt'))
 
+    triples = get_all_drug_disease_associations(drug_set, disease_set)
+    print(f'{len(triples)} drug disease associations')
+    write_triples(triples, join(links_root, 'drug_disease.txt'))
+
+    triples = get_all_disease_pathway_associations(disease_set)
+    print(f'{len(triples)} disease pathway associations')
+    write_triples(triples, join(links_root, 'disease_pathway.txt'))
+
+    # Get Properties
+    print('Writing properties')
+    triples, indication_triples = get_all_drug_side_effects(drug_set)
+    print(f'{len(triples)} drug side effect associations')
+    write_triples(triples, join(drug_properties_root, 'drug_sideeffect.txt'))
+    write_triples(indication_triples, join(drug_properties_root, 'drug_indications.txt'))
+
+    triples = get_all_drug_atc_codes(drug_set)
+    print(f'{len(triples)} drug atc codes')
+    write_triples(triples, join(drug_properties_root, 'drug_atc_codes.txt'))
+
+    triples = get_disease_tree(disease_set)
+    print(f'{len(triples)} disease tree')
+    write_triples(triples, join(disease_properties_root, 'disease_tree.txt'))
+
+    write_protein_cellline_expressions(protein_set)
+
+    copy(
+        join(data_root, 'medgen', 'mim_categories.txt'),
+        mim_properties_root
+    )
+
+    # Copy Other datasets
+    print('Copying other files')
+    other_ctd = join(other_root, 'ctd')
+    makedirs(other_ctd) if not isdir(other_ctd) else None
+    copy_folder(
+        join(data_root, 'ctd'),
+        other_ctd,
+        included_files=[
+            'ctd_disease_biological_process.txt',
+            'ctd_disease_cellular_component.txt',
+            'ctd_disease_molecular_function.txt',
+            'ctd_drug_phenotype.txt',
+            'ctd_drug_protein_interactions.txt',
+            'ctd_disease_kegg_pathway_association.txt',
+            'ctd_disease_reactome_pathway_association.txt'
+        ]
+    )
+
+    other_cello = join(other_root, 'cellosaurus')
+    makedirs(other_cello) if not isdir(other_cello) else None
+    copy_folder(
+        join(data_root, 'cellosaurus'),
+        other_cello,
+        included_files=[
+            'cl_cat.txt',
+            'cl_geo.txt',
+            'cl_map.txt',
+            'cl_pmid.txt'
+        ]
+    )
+
+    other_drugbank = join(other_root, 'drugbank')
+    makedirs(other_drugbank) if not isdir(other_drugbank) else None
+    copy_folder(
+        join(data_root, 'drugbank'),
+        other_drugbank,
+        included_files=[
+            'db_mechanism_or_action.txt',
+            'db_mesh.txt'
+        ]
+    )
+
+    other_hpa = join(other_root, 'hpa')
+    makedirs(other_hpa) if not isdir(other_hpa) else None
+    copy_folder(
+        join(data_root, 'hpa'),
+        other_hpa,
+        included_files=[
+            'hpa_antibodies.txt'
+        ]
+    )
+
+    other_kegg = join(other_root, 'kegg')
+    makedirs(other_kegg) if not isdir(other_kegg) else None
+    copy_folder(
+        join(data_root, 'kegg'),
+        other_kegg,
+        included_files=[
+            'gene_network.txt',
+            'glycan_pathway.txt',
+            'network_disease.txt',
+            'network_drug.txt',
+            'network_pathway.txt',
+            'disease_meta.txt'
+        ]
+    )
+
+    other_mesh = join(other_root, 'mesh')
+    makedirs(other_mesh) if not isdir(other_mesh) else None
+    copy_folder(
+        join(data_root, 'mesh'),
+        other_mesh,
+        included_files=[
+            'mesh_disease_concept_heading.txt',
+            'mesh_drug_concept_heading.txt',
+            'mesh_scr_drug_meta.txt',
+            'mesh_drug_tree.txt',
+            'mesh_drug_meta.txt'
+        ]
+    )
+
+    other_phos = join(other_root, 'phosphosite')
+    makedirs(other_phos) if not isdir(other_phos) else None
+    copy_folder(
+        join(data_root, 'phosphosite'),
+        other_phos,
+        included_files=[
+            'phosphorylation_site.txt'
+        ]
+    )
+
+    other_reactome = join(other_root, 'reactome')
+    makedirs(other_reactome) if not isdir(other_reactome) else None
+    copy_folder(
+        join(data_root, 'reactome'),
+        other_reactome,
+        included_files=[
+            'reactome_go_mapping.txt',
+            'reactome_isoform_pathway.txt'
+        ]
+    )
+
+    other_sider = join(other_root, 'sider')
+    makedirs(other_sider) if not isdir(other_sider) else None
+    copy_folder(
+        join(data_root, 'sider'),
+        other_sider,
+        included_files=[
+            'sider_indications_meta.txt',
+            'sider_effects_meta.txt'
+        ]
+    )
+
+    # Gzip output
+    print('Compressing output')
+    compress_folder(output_root)
+
+    #Copy readmes to output
+    copy('links_description.txt', join(links_root, 'README.txt'))
+    copy('properties_description.txt', join(properties_root, 'README.txt'))
+    copy('meta_description.txt', join(meta_root, 'README.txt'))
+
+
+if __name__ == '__main__':
+    compile_graph()

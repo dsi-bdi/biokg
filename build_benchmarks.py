@@ -1,10 +1,11 @@
 from os import makedirs
 from os.path import join, isdir
+import gzip
 
 
 def export_triplets(triplets, filepath):
     """ Export triplets to file
-    
+
     Parameters
     ----------
     triplets : iter
@@ -38,7 +39,7 @@ def build_benchmarks(preprocessed_dp, output_dp):
     # Benchmark #1: Drug-drug interactions and their effects on body minerals
     # Benchmark #2: Drug-drug interactions and their effects on therapeutic efficacy
     # ------------------------------------------------------------------------------------------------
-    ddi_desc_fp = join(preprocessed_dp, "drugbank", "db_interactions.txt")
+    ddi_desc_fp = join(preprocessed_dp, "drugbank", "db_ddi.txt")
 
     mineral_triplets = set()
     efficacy_triplets = set()
@@ -69,7 +70,7 @@ def build_benchmarks(preprocessed_dp, output_dp):
     # Benchmark #2: Drug effects of protein expression for FDA approved drugs
     # ------------------------------------------------------------------------------------------------
     drug_stage_fp = join(preprocessed_dp, "drugbank", "db_product_stage.txt")
-    drug_targets_fp = join(output_dp, "links", "dpi.txt")
+    drug_targets_fp = join(output_dp, "links", "dpi.txt.gz")
     drug_targets_effects_fp = join(preprocessed_dp, "ctd", "ctd_drug_protein_interactions.txt")
 
     fda_approved_drugs = set()
@@ -79,7 +80,7 @@ def build_benchmarks(preprocessed_dp, output_dp):
         if stage == "approved":
             fda_approved_drugs.add(dr)
 
-    for line in open(drug_targets_fp):
+    for line in gzip.open(drug_targets_fp, 'rt'):
         dr, _, pr = line.strip().split("\t")
         if dr in fda_approved_drugs:
             fda_dpi.add((dr, "DPI", pr))
