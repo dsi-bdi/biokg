@@ -49,13 +49,13 @@ def build_benchmarks(preprocessed_dp, output_dp):
     for line in open(ddi_desc_fp):
         d1, _, d2, ddi_effect = line.strip().split("\t")
 
-        is_mineral_effect = bool(sum([ef in ddi_effect for ef in mineral_effects]))
+        is_mineral_effect = bool(sum([mef in ddi_effect for mef in mineral_effects]))
         is_efficacy_effect = bool(sum([ef in ddi_effect for ef in efficacy_effects]))
 
         if is_mineral_effect:
-            mineral_triplets.add((d1, ddi_effect, d2))
+            mineral_triplets.add((d1, ddi_effect, d2)) if d1 > d2 else mineral_triplets.add((d2, ddi_effect, d1))
         if is_efficacy_effect:
-            efficacy_triplets.add((d1, ddi_effect, d2))
+            efficacy_triplets.add((d1, ddi_effect, d2)) if d1 > d2 else efficacy_triplets.add((d2, ddi_effect, d1))
 
     ddi_chem_fp = join(benchmarks_dp, "ddi_minerals.tsv")
     ddi_efficacy_fp = join(benchmarks_dp, "ddi_efficacy.tsv")
