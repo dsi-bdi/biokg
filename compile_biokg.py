@@ -1,4 +1,4 @@
-from biolink import KEGGLinker, SiderLinker
+from biodblinker import KEGGLinker, SiderLinker, MESHLinker
 from os import makedirs, listdir, remove, walk
 from os.path import join, isdir
 from shutil import copy
@@ -6,8 +6,10 @@ import gzip
 
 kegg_linker = KEGGLinker()
 sider_linker = SiderLinker()
+mesh_linker = MESHLinker()
 data_root = 'data/preprocessed'
 output_root = 'data/output'
+core_root = 'data/core'
 links_root = join(output_root, 'links')
 meta_root = join(output_root, 'metadata')
 properties_root = join(output_root, 'properties')
@@ -16,7 +18,7 @@ protein_properties_root = join(properties_root, 'protein')
 pathway_properties_root = join(properties_root, 'pathway')
 disease_properties_root = join(properties_root, 'disease')
 cell_properties_root = join(properties_root, 'cell')
-mim_properties_root = join(properties_root, 'mim')
+mim_properties_root = join(properties_root, 'genetic_disorders')
 other_root = join(output_root, 'other')
 
 makedirs(output_root) if not isdir(output_root) else None
@@ -30,7 +32,7 @@ makedirs(disease_properties_root) if not isdir(disease_properties_root) else Non
 makedirs(cell_properties_root) if not isdir(cell_properties_root) else None
 makedirs(mim_properties_root) if not isdir(mim_properties_root) else None
 makedirs(other_root) if not isdir(other_root) else None
-
+makedirs(core_root) if not isdir(core_root) else None
 
 def get_all_proteins():
     """
@@ -132,6 +134,35 @@ def get_all_mesh_diseases():
                     mesh_diseases.add(disease)
 
     return mesh_diseases
+
+
+def get_all_genetic_disorders():
+    """
+    Get the set of uniprot proteins for which the metadata value of field
+    is ont of the accpeted_values
+
+    Parameters
+    ----------
+    filter_field: str
+        The metadata field to filter by
+    accepted_values: list
+        The set of accpetable values for the metadata field
+
+    Returns
+    -------
+    set
+        the set of proteins to include in the kg
+    """
+    uniprot_meta = join(data_root, 'uniprot', 'uniprot_facts.txt')
+    genetic_disorders = set()
+    with open(uniprot_meta, 'r') as fd:
+        for line in fd:
+            protein, field, value = line.strip().split('\t')
+            if field == 'RELATED_GENETIC_DISORDER':
+                genetic_disorders.add(value)
+
+    return genetic_disorders
+
 
 def get_all_unique_ppi(protein_set):
     """
@@ -270,16 +301,13 @@ def get_all_protein_sequence_annotations(protein_set):
         'GO_BP': open(join(protein_properties_root, 'protein_go_biological_process.txt'), 'w'),
         'GO_CC': open(join(protein_properties_root, 'protein_go_cellular_component.txt'), 'w'),
         'GO_MF': open(join(protein_properties_root, 'protein_go_molecular_function.txt'), 'w'),
-        'RELATED_MIM': open(join(protein_properties_root, 'protein_mim.txt'), 'w')
+        'RELATED_GENETIC_DISORDER': open(join(links_root, 'protein_genetic_disorders.txt'), 'w')
     }
 
     with open(join(data_root, 'uniprot', 'uniprot_facts.txt'), 'r') as fd:
         for line in fd:
             s, p, o = line.strip().split('\t')
             if p in annotation_output_files and s in protein_set:
-                if p == 'RELATED_MIM':
-                    o = o.split(':')[1]
-                    line = f'{s}\t{p}\t{o}\n'
                 annotation_output_files[p].write(line)
 
     for fd in annotation_output_files.values():
@@ -809,11 +837,11 @@ def get_complex_pathway_rels():
 
     unique_triples = []
     for _complex, pathway in complex_pathways:
-        unique_triples.append((_complex, 'MEMBER_OF_PATHWAY', pathway))
+        unique_triples.append((_complex, 'COMPLEX_IN_PATHWAY', pathway))
 
     tl_triples = []
     for _complex, pathway in top_level_pathways:
-        tl_triples.append((_complex, 'MEMBER_OF_TOP_LEVEL_PATHWAY', pathway))
+        tl_triples.append((_complex, 'COMPLEX_TOP_LEVEL_PATHWAY', pathway))
     return unique_triples, tl_triples
 
 
@@ -872,9 +900,9 @@ def get_all_protein_expressions(protein_set):
     # for protein, tissue in expression:
     #     if protein in protein_set:
     #         unique_triples.append((protein, 'Protein_Expression', tissue))
-    uniprot_meta_dp = join(meta_root, 'uniprot')
-    makedirs(uniprot_meta_dp) if not isdir(uniprot_meta_dp) else None
-    level_output = open(join(uniprot_meta_dp, 'protein_expression_level.txt'), 'w')
+    hpa_other = join(other_root, 'hpa')
+    makedirs(hpa_other) if not isdir(hpa_other) else None
+    level_output = open(join(hpa_other, 'protein_expression_level.txt'), 'w')
     for protein, tissue in low_expression:
         if protein in protein_set:
             unique_triples.append((protein, 'PROTEIN_EXPRESSED_IN', tissue))
@@ -894,9 +922,27 @@ def get_all_protein_expressions(protein_set):
 
     return unique_triples, structure_triples
 
+def get_all_disease_genetic_disorder(disease_set, genetic_disorder_set):
+    dgd = set()
+
+    for disease in disease_set:
+        mapped_mim = mesh_linker.convert_disease_to_omim([disease])
+        for mim in mapped_mim[0]:
+            title = f'MIM:{mim}'
+            if title in genetic_disorder_set:
+                dgd.add((disease, title))
+
+    unique_triples = []
+    for disease, disorder in dgd:
+        unique_triples.append((disease, 'DISEASE_GENETIC_DISORDER', disorder))
+
+    return unique_triples
+
 
 def write_protein_cellline_expressions(protein_set):
     pcl = set()
+    hpa_other = join(other_root, 'hpa')
+    makedirs(hpa_other) if not isdir(hpa_other) else None
     with open(join(data_root, 'hpa', 'hpa_cellines_exp.txt'), 'r') as fd:
         for line in fd:
             pro, _, cl_tissue, exp = line.strip().split('\t')
@@ -906,7 +952,7 @@ def write_protein_cellline_expressions(protein_set):
             exp = exp.split(':')[1]
             pcl.add((pro, cl, exp))
 
-    with open(join(protein_properties_root, 'protein_cellline_expression.txt'), 'w') as fd:
+    with gzip.open(join(hpa_other, 'protein_cellline_expression.txt.gz'), 'wt') as fd:
         for protein, cellline, expression in pcl:
             if protein in protein_set:
                 fd.write(f'{protein}\t{cellline}\t{expression}\n')
@@ -930,7 +976,7 @@ def filter_ctd_drug_protein(protein_set):
 
 
 def write_uniprot_metadata():
-    uniprot_meta_dp = join(meta_root, 'uniprot')
+    uniprot_meta_dp = join(meta_root, 'protein')
     makedirs(uniprot_meta_dp) if not isdir(uniprot_meta_dp) else None
 
     meta_output_files = {
@@ -957,7 +1003,7 @@ def write_uniprot_metadata():
 
 
 def write_drugbank_metadata():
-    drugbank_meta_dp = join(meta_root, 'drugbank')
+    drugbank_meta_dp = join(meta_root, 'drug')
     makedirs(drugbank_meta_dp) if not isdir(drugbank_meta_dp) else None
 
     meta_output_files = {
@@ -1003,7 +1049,7 @@ def write_drugbank_metadata():
 
 
 def write_mesh_metadata():
-    mesh_meta_dp = join(meta_root, 'mesh')
+    mesh_meta_dp = join(meta_root, 'disease')
     makedirs(mesh_meta_dp) if not isdir(mesh_meta_dp) else None
 
     meta_output_files = {
@@ -1038,12 +1084,60 @@ def copy_folder(src_folder, dst_folder, included_files=[]):
 def compress_folder(folder):
     for root, dirs, files in walk(folder):
         for fp in files:
+            if fp.endswith('.gz'):
+                continue
             src_fp = join(root, fp)
             dst_fp = join(root, fp+'.gz')
             with open(src_fp, 'rb') as f_in, gzip.open(dst_fp, 'wb') as f_out:
                 f_out.writelines(f_in)
             remove(src_fp)
 
+
+def generate_core_links():
+    output = open(join(core_root, 'biokg.links.tsv'), 'w')
+    for f in listdir(links_root):
+        if f.endswith('.txt'):
+            with open(join(links_root, f), 'r') as fd:
+                for line in fd:
+                    output.write(line)
+    output.close()
+
+def generate_props(name, folder):
+    output = open(join(core_root, f'biokg.properties.{name}.tsv'), 'w')
+    for root, dirs, files in walk(folder):
+        for fp in files:
+            if fp.endswith('.txt'):
+                with open(join(root, fp)) as fd:
+                    for line in fd:
+                        output.write(line)
+    output.close()
+
+def generate_core_props():
+    generate_props('protein', protein_properties_root)
+    generate_props('drug', drug_properties_root)
+    generate_props('cell', cell_properties_root)
+    generate_props('pathway', pathway_properties_root)
+    generate_props('disease', disease_properties_root)
+    generate_props('genetic_disorder', join(properties_root, 'genetic_disorders'))
+
+
+
+def generate_meta(name, folder):
+    output = open(join(core_root, f'biokg.metadata.{name}.tsv'), 'w')
+    for root, dirs, files in walk(folder):
+        for fp in files:
+            if fp.endswith('.txt'):
+                with open(join(root, fp)) as fd:
+                    for line in fd:
+                        output.write(line)
+    output.close()
+
+
+def generate_core_metadata():
+    generate_meta('protein', join(meta_root, 'protein'))
+    generate_meta('drug', join(meta_root, 'drug'))
+    generate_meta('disease', join(meta_root, 'disease'))
+    generate_meta('pathway', join(meta_root, 'pathway'))
 
 
 def compile_graph():
@@ -1058,6 +1152,7 @@ def compile_graph():
     disease_set = get_all_mesh_diseases()
     write_mesh_metadata()
 
+    genetic_disorders = get_all_genetic_disorders()
     # Get Links
     print('Writing Links')
     triples = get_all_unique_ppi(protein_set)
@@ -1100,7 +1195,7 @@ def compile_graph():
 
     triples = get_pathway_rels()
     print(f'{len(triples)} pathway rels')
-    reactome_meta = join(meta_root, 'reactome')
+    reactome_meta = join(meta_root, 'pathway')
     makedirs(reactome_meta) if not isdir(reactome_meta) else None
     write_triples(triples, join(reactome_meta, 'pathway_parent.txt'))
 
@@ -1120,6 +1215,9 @@ def compile_graph():
     print(f'{len(triples)} disease pathway associations')
     write_triples(triples, join(links_root, 'disease_pathway.txt'))
 
+    triples = get_all_disease_genetic_disorder(disease_set, genetic_disorders)
+    print(f'{len(triples)} disease genetic disorders')
+    write_triples(triples, join(links_root, 'disease_genetic_disorders.txt'))
     # Get Properties
     print('Writing properties')
     triples, indication_triples = get_all_drug_side_effects(drug_set)
@@ -1255,6 +1353,11 @@ def compile_graph():
         ]
     )
 
+    print('Extracting core graph')
+    generate_core_links()
+    generate_core_props()
+    generate_core_metadata()
+    
     # Gzip output
     print('Compressing output')
     compress_folder(output_root)

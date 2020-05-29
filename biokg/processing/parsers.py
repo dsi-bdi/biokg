@@ -344,7 +344,7 @@ class UniProtTxtParser:
             if "DISEASE" in comments_cats_dict:
                 disease_codes = re.findall(P_DISEASE_CODE, comments_cats_dict["DISEASE"])
                 for c in disease_codes:
-                    entry_facts.append([entry_code, "RELATED_MIM", c])
+                    entry_facts.append([entry_code, "RELATED_GENETIC_DISORDER", c])
 
         # ------------------------------------------------------------------------
         # Processing FT prefix section [Sequence annotations]
