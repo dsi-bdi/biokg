@@ -5,7 +5,13 @@
 !requirements.txt
 !sources.ini
 !main.py
+!run_all.py
+!compile_biokg.py
+!build_benchmarks.py
 !biokg
+!links_description.txt
+!meta_description.txt
+!properties_description.txt
 
 # exclude the __pycache__ folders
 **/__pycache__

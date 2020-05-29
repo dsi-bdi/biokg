@@ -1641,6 +1641,8 @@ class ReactomeParser:
                 else:
                     rel_name = 'GO_MF'
                 go_id = parts[4]
+                if not parts[5].startswith('REACTOME'):
+                    continue
                 reactome_id = parts[5].split(':')[1]
                 output_fd.write(f'{uniprot_id}\t{rel_name}\t{go_id}\t{reactome_id}\t{org}\n')
 
@@ -3131,7 +3133,7 @@ class MedgenParser():
                 mim = parts[1]
                 mim_cat = sanatize_text(parts[9])
                 
-                output_fd.write(f'{mim}\tCATEGORY\t{mim_cat}\n')
+                output_fd.write(f'MIM:{mim}\tCATEGORY\t{mim_cat}\n')
 
         output_fd.close()
         nb_entries += 1
