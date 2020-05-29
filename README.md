@@ -5,11 +5,11 @@ A biological knowledge graph built from available online knowledge bases.
 # Compiling BioKG with docker
 
 ## Building docker image
-```
+```bash
 sudo docker build . -t dsi-bdi/biokg
 ```
 ## Running the image
-```
+```bash
 sudo docker run --rm -v <data_path>:/biokg/data -e DB_USER='<drugbank_username>' -e DB_PASS='<drugbank_password>' bdi/biokg:latest
 ```
 - where <data_path> is the fully qualified path to your data folder
