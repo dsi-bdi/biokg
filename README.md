@@ -10,7 +10,7 @@ sudo docker build . -t dsi-bdi/biokg
 ```
 ## Running the image
 ```bash
-sudo docker run --rm -v <data_path>:/biokg/data -e DB_USER='<drugbank_username>' -e DB_PASS='<drugbank_password>' bdi/biokg:latest
+sudo docker run --rm -v <data_path>:/biokg/data -e DB_USER='<drugbank_username>' -e DB_PASS='<drugbank_password>' dsi-bdi/biokg:latest
 ```
 - where <data_path> is the fully qualified path to your data folder
 
