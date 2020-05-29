@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from os.path import join, isdir, exists
-from os import mkdir
+from os import mkdir, environ
 from configparser import RawConfigParser
 import sys
 from biokg.loader import *
@@ -10,7 +10,7 @@ from biokg.processing.parsers import *
 from biokg.util.io import export_file_md5, file_has_valid_md5
 
 
-def main():
+def preprocess_graph():
     """ Program entry point
     """
     print_bold_line()
@@ -67,7 +67,10 @@ def main():
         db_user = sys.argv[1]
         db_pass = sys.argv[2]
         download_drugbank_data(sources_dp=sources_dp, srcs_cp=sources_urls, username=db_user, password=db_pass)
-
+    elif 'DB_USER' in environ and 'DB_PASS' in environ:
+        db_user = environ['DB_USER']
+        db_pass = environ['DB_PASS']
+        download_drugbank_data(sources_dp=sources_dp, srcs_cp=sources_urls, username=db_user, password=db_pass)
     # download kegg source data
     download_kegg_data(sources_dp=sources_dp, srcs_cp=sources_urls)
 
@@ -254,4 +257,4 @@ def main():
         print(inf_sym + "MedGen processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
 
 if __name__ == '__main__':
-    main()
+    preprocess_graph()

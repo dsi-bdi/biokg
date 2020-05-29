@@ -9,7 +9,7 @@ sider_linker = SiderLinker()
 mesh_linker = MESHLinker()
 data_root = 'data/preprocessed'
 output_root = 'data/output'
-core_root = 'data/core'
+core_root = 'data/biokg'
 links_root = join(output_root, 'links')
 meta_root = join(output_root, 'metadata')
 properties_root = join(output_root, 'properties')
@@ -1048,6 +1048,22 @@ def write_drugbank_metadata():
                     output.write(line)
 
 
+def write_pathway_go_annotations():
+    pred_file_map = {
+        'GO_BP': open(join(pathway_properties_root, 'pathway_go_biological_processes.txt'), 'w'),
+        'GO_CC': open(join(pathway_properties_root, 'pathway_go_cellular_components.txt'), 'w'),
+        'GO_MF': open(join(pathway_properties_root, 'pathway_go_molecular_functions.txt'), 'w')
+    }
+
+    with open(join(data_root, 'reactome', 'reactome_go_mapping.txt'), 'r') as fd:
+        for line in fd:
+            protein, map_type, goid, pathway_id, species = line.strip().split('\t')
+            pred_file_map[map_type].write(f'{pathway_id}\tPATHWAY_{map_type}\t{goid}\n')
+    
+    for f in pred_file_map.values():
+        f.close()
+
+
 def write_mesh_metadata():
     mesh_meta_dp = join(meta_root, 'disease')
     makedirs(mesh_meta_dp) if not isdir(mesh_meta_dp) else None
@@ -1096,7 +1112,7 @@ def compress_folder(folder):
 def generate_core_links():
     output = open(join(core_root, 'biokg.links.tsv'), 'w')
     for f in listdir(links_root):
-        if f.endswith('.txt'):
+        if f.endswith('.txt') and f != 'README.txt':
             with open(join(links_root, f), 'r') as fd:
                 for line in fd:
                     output.write(line)
@@ -1106,7 +1122,7 @@ def generate_props(name, folder):
     output = open(join(core_root, f'biokg.properties.{name}.tsv'), 'w')
     for root, dirs, files in walk(folder):
         for fp in files:
-            if fp.endswith('.txt'):
+            if fp.endswith('.txt') and fp != 'README.txt':
                 with open(join(root, fp)) as fd:
                     for line in fd:
                         output.write(line)
@@ -1126,7 +1142,7 @@ def generate_meta(name, folder):
     output = open(join(core_root, f'biokg.metadata.{name}.tsv'), 'w')
     for root, dirs, files in walk(folder):
         for fp in files:
-            if fp.endswith('.txt'):
+            if fp.endswith('.txt') and fp != 'README.txt':
                 with open(join(root, fp)) as fd:
                     for line in fd:
                         output.write(line)
@@ -1234,6 +1250,7 @@ def compile_graph():
     write_triples(triples, join(disease_properties_root, 'disease_tree.txt'))
 
     write_protein_cellline_expressions(protein_set)
+    write_pathway_go_annotations()
 
     copy(
         join(data_root, 'medgen', 'mim_categories.txt'),
@@ -1357,7 +1374,7 @@ def compile_graph():
     generate_core_links()
     generate_core_props()
     generate_core_metadata()
-    
+
     # Gzip output
     print('Compressing output')
     compress_folder(output_root)
