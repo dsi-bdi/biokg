@@ -76,19 +76,19 @@ def preprocess_graph():
 
     # download mesh source data
     download_mesh_data(sources_dp=sources_dp, srcs_cp=sources_urls)
+
+    # download Cutillas 20 data
+    download_cutillas20_data(sources_dp=sources_dp, srcs_cp=sources_urls)
     # ----------------------------------------------------------------------
     # processing uniprot entries file
     uniprot_parser = UniProtTxtParser()
     uniprot_dp = join(preprocessed_dp, 'uniprot')
     mkdir(uniprot_dp) if not isdir(uniprot_dp) else None
-    uniprot_entries_fp = join(sources_dp, "swissprot_entries.txt.gz")
-    interpro_entries_fp = join(sources_dp, "interpro_entries.txt")
-    uniprot_output_files = ["uniprot_facts.txt", "uniprot_metadata.txt", "uniprot_ppi.txt"]
-    uniprot_output_fps = [join(uniprot_dp, fn) for fn in uniprot_output_files]
+    uniprot_output_fps = [join(uniprot_dp, fn) for fn in uniprot_parser.filenames]
     invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in uniprot_output_fps]))
 
     if invalid_md5:
-        uniprot_parser.parse(uniprot_entries_fp, interpro_entries_fp, uniprot_dp)
+        uniprot_parser.parse(sources_dp, uniprot_dp)
         for ofp in uniprot_output_fps:
             export_file_md5(ofp)
     else:
@@ -255,6 +255,21 @@ def preprocess_graph():
             export_file_md5(ofp)
     else:
         print(inf_sym + "MedGen processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
+    
+    # ----------------------------------------------------------------------
+    # processing Cutillas files
+    cutillas_parser = CutillasParser()
+    cutillas_dp = join(preprocessed_dp, 'cutillas')
+    mkdir(cutillas_dp) if not isdir(cutillas_dp) else None
+    cutillas_fps = [join(cutillas_dp, fn) for fn in cutillas_parser.filenames]
+    invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in cutillas_fps]))
+
+    if invalid_md5:
+        cutillas_parser.parse_phosphorylation(sources_dp, cutillas_dp)
+        for ofp in cutillas_fps:
+            export_file_md5(ofp)
+    else:
+        print(inf_sym + "Cutillas processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
 
 if __name__ == '__main__':
     preprocess_graph()
