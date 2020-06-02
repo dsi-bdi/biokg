@@ -1,7 +1,7 @@
 from os import makedirs
 from os.path import join, isdir
 import gzip
-
+from biodblinker import GeneNameLinker
 
 def export_triplets(triplets, filepath):
     """ Export triplets to file
@@ -104,6 +104,46 @@ def build_benchmarks(preprocessed_dp, output_dp):
     dep_exp_fda_triplets = [[dr, eff, pr] for dr, eff, pr in dpi_exp_triplets if dr in fda_approved_drugs]
     export_triplets(dep_exp_fda_triplets, dpi_exp_fp)
     # ================================================================================================
+    # Build Phosphorylation benchmark
+    # ------------------------------------------------------------------------------------------------
+    # Benchmark #1: Human Kinase Substrate phosphorylation interactions from phosphosite plus and Cutillas 20
+    # ------------------------------------------------------------------------------------------------
+    linker = GeneNameLinker()
+    human_uniprot_ids = set()
+    psp_set = set()
+    cutillas_set = set()
+    psp_phos_fp = join(preprocessed_dp, 'phosphosite', 'kinase_substrate.txt')
+    cutillas_fp = join(preprocessed_dp, 'cutillas', 'phosphorylation.txt')
+    phos_fp = join(benchmarks_dp, 'phosphorylation.tsv')
+    with open(join(preprocessed_dp, 'uniprot', 'uniprot_metadata.txt'), 'r') as fd:
+        for line in fd:
+            s, p, o = line.strip().split('\t')
+            if p == 'SPECIES' and o == 'HUMAN':
+                human_uniprot_ids.add(s)
+    
+    with open(psp_phos_fp, 'r') as fd:
+        for line in fd:
+            kin, _, sub = line.strip().split('\t')[:3]
+            if kin in human_uniprot_ids and sub in human_uniprot_ids:
+                psp_set.add((kin, sub))
+
+    with open(cutillas_fp, 'r') as fd:
+        for line in fd:
+            parts = line.strip().split('\t')
+            if len(parts) < 4:
+                print(line)
+                continue
+            kin_gene, _, sub_gene = parts[:3]
+            kin_uniprot_ids, sub_uniprot_ids = linker.convert_gene_name_to_uniprot([kin_gene, sub_gene])
+            for kin in kin_uniprot_ids:
+                if kin in human_uniprot_ids:
+                    for sub in sub_uniprot_ids:
+                        if sub in human_uniprot_ids:
+                            cutillas_set.add((kin, sub))
+
+    phosphorylation_set = psp_set.union(cutillas_set)
+    phos_triplets = [[kin, 'phosphorylates', sub] for kin, sub in phosphorylation_set]
+    export_triplets(phos_triplets, phos_fp)
 
 
 def main():

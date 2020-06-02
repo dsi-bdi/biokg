@@ -314,35 +314,6 @@ def get_all_protein_sequence_annotations(protein_set):
         fd.close()
 
 
-def get_all_unique_phosphorylations(protein_set):
-    """
-    Get the set of protein proteins interactions to include in the kg
-
-    Parameters
-    ----------
-    protein_set: set
-        the set of proteins used to filter the ppis
-    Returns
-    -------
-    list
-        the list of unique protein protein interactions
-    """
-    ks_fp = join(data_root, 'phosphosite', 'kinase_substrate.txt')
-    ppis = set()
-
-    with open(ks_fp, 'r') as fd:
-        for line in fd:
-            s, _, o = line.strip().split('\t')[:3]
-            ppis.add((s, o))
-
-    unique_triples = []
-    for s, o in ppis:
-        if s in protein_set and o in protein_set:
-            unique_triples.append((s, 'PHOSPHORYLATION', o))
-
-    return unique_triples
-
-
 def get_all_protein_drug_interactions(protein_set, drug_set):
     """
     Get the set of protein drug interactions to include in the kg
@@ -1177,10 +1148,6 @@ def compile_graph():
 
     write_ppi_by_species()
     get_all_protein_sequence_annotations(protein_set)
-
-    triples = get_all_unique_phosphorylations(protein_set)
-    print(f'{len(triples)} protein protein phosphorylations')
-    write_triples(triples, join(links_root, 'phospohrylation.txt'))
 
     triples, function_triples = get_all_protein_drug_interactions(protein_set, drug_set)
     print(f'{len(triples)} drug targets')
