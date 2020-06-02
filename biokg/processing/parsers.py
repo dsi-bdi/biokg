@@ -3196,10 +3196,10 @@ class MedgenParser():
         print(done_sym + "Processed (%d) files. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
 
 
-class CutillasParser():
+class Cutillas20Parser():
     def __init__(self):
         """
-        Initialize Cutillas Parser
+        Initialize Cutillas20 Parser
         """
         self._filenames = [
             'phosphorylation.txt'
@@ -3208,7 +3208,7 @@ class CutillasParser():
     @property
     def filenames(self):
         """
-        Get Cutillas filenames
+        Get Cutillas20 filenames
 
         Returns
         -------
@@ -3219,7 +3219,7 @@ class CutillasParser():
 
     def parse_phosphorylation(self, source_dp, output_dp):
         """
-        Parse Cutillas files
+        Parse Cutillas20 files
 
         Parameters
         ----------
@@ -3229,13 +3229,13 @@ class CutillasParser():
             The path to the output directory
         """
         print_section_header(
-            "Parsing Cutillas files (%s)" %
-            (bcolors.OKGREEN + source_dp + '/cutillas_pdt.xlsm' + bcolors.ENDC)
+            "Parsing Cutillas29 files (%s)" %
+            (bcolors.OKGREEN + source_dp + '/cutillas20.xlsm' + bcolors.ENDC)
         )
         start = timer()
         nb_entries = 0
 
-        input_fp = join(source_dp, 'cutillas_pdt.xlsm' )
+        input_fp = join(source_dp, 'cutillas20.xlsm' )
         phos_df = pd.read_excel(input_fp)
         sub_site_pattern = re.compile("(?P<sub>\w+)\((?P<site>\w+)\)")
         split_target_df = phos_df['Putative Downtream Target'].str.extract(sub_site_pattern)

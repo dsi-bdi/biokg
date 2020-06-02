@@ -113,7 +113,7 @@ def build_benchmarks(preprocessed_dp, output_dp):
     psp_set = set()
     cutillas_set = set()
     psp_phos_fp = join(preprocessed_dp, 'phosphosite', 'kinase_substrate.txt')
-    cutillas_fp = join(preprocessed_dp, 'cutillas', 'phosphorylation.txt')
+    cutillas20_fp = join(preprocessed_dp, 'cutillas20', 'phosphorylation.txt')
     phos_fp = join(benchmarks_dp, 'phosphorylation.tsv')
     with open(join(preprocessed_dp, 'uniprot', 'uniprot_metadata.txt'), 'r') as fd:
         for line in fd:
@@ -127,7 +127,7 @@ def build_benchmarks(preprocessed_dp, output_dp):
             if kin in human_uniprot_ids and sub in human_uniprot_ids:
                 psp_set.add((kin, sub))
 
-    with open(cutillas_fp, 'r') as fd:
+    with open(cutillas20_fp, 'r') as fd:
         for line in fd:
             parts = line.strip().split('\t')
             if len(parts) < 4:

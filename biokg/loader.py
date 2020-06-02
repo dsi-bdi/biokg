@@ -278,6 +278,6 @@ def download_cutillas20_data(sources_dp, srcs_cp):
     """
     print_section_header("Downloading Cutillas data files")
 
-    pdts_fp = join(sources_dp, "cutillas_pdt.xlsm")
-    download_file_md5_check(srcs_cp["cutillas20"]["cutillas_pdt"], pdts_fp)
+    pdts_fp = join(sources_dp, "cutillas20.xlsm")
+    download_file_md5_check(srcs_cp["cutillas20"]["cutillas20_pdt"], pdts_fp)
     print_bold_line()
