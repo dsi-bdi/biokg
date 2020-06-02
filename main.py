@@ -257,19 +257,19 @@ def preprocess_graph():
         print(inf_sym + "MedGen processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
     
     # ----------------------------------------------------------------------
-    # processing Cutillas files
-    cutillas_parser = CutillasParser()
-    cutillas_dp = join(preprocessed_dp, 'cutillas')
-    mkdir(cutillas_dp) if not isdir(cutillas_dp) else None
-    cutillas_fps = [join(cutillas_dp, fn) for fn in cutillas_parser.filenames]
-    invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in cutillas_fps]))
+    # processing Cutillas20 files
+    cutillas20_parser = Cutillas20Parser()
+    cutillas20_dp = join(preprocessed_dp, 'cutillas20')
+    mkdir(cutillas20_dp) if not isdir(cutillas20_dp) else None
+    cutillas20_fps = [join(cutillas20_dp, fn) for fn in cutillas20_parser.filenames]
+    invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in cutillas20_fps]))
 
     if invalid_md5:
-        cutillas_parser.parse_phosphorylation(sources_dp, cutillas_dp)
-        for ofp in cutillas_fps:
+        cutillas20_parser.parse_phosphorylation(sources_dp, cutillas20_dp)
+        for ofp in cutillas20_fps:
             export_file_md5(ofp)
     else:
-        print(inf_sym + "Cutillas processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
+        print(inf_sym + "Cutillas20 processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
 
 if __name__ == '__main__':
     preprocess_graph()
