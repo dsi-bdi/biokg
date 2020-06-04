@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from os.path import join, isdir, exists
-from os import mkdir
+from os import mkdir, environ
 from configparser import RawConfigParser
 import sys
 from biokg.loader import *
@@ -10,7 +10,7 @@ from biokg.processing.parsers import *
 from biokg.util.io import export_file_md5, file_has_valid_md5
 
 
-def main():
+def preprocess_graph():
     """ Program entry point
     """
     print_bold_line()
@@ -67,25 +67,28 @@ def main():
         db_user = sys.argv[1]
         db_pass = sys.argv[2]
         download_drugbank_data(sources_dp=sources_dp, srcs_cp=sources_urls, username=db_user, password=db_pass)
-
+    elif 'DB_USER' in environ and 'DB_PASS' in environ:
+        db_user = environ['DB_USER']
+        db_pass = environ['DB_PASS']
+        download_drugbank_data(sources_dp=sources_dp, srcs_cp=sources_urls, username=db_user, password=db_pass)
     # download kegg source data
     download_kegg_data(sources_dp=sources_dp, srcs_cp=sources_urls)
 
     # download mesh source data
     download_mesh_data(sources_dp=sources_dp, srcs_cp=sources_urls)
+
+    # download Cutillas 20 data
+    download_cutillas20_data(sources_dp=sources_dp, srcs_cp=sources_urls)
     # ----------------------------------------------------------------------
     # processing uniprot entries file
     uniprot_parser = UniProtTxtParser()
     uniprot_dp = join(preprocessed_dp, 'uniprot')
     mkdir(uniprot_dp) if not isdir(uniprot_dp) else None
-    uniprot_entries_fp = join(sources_dp, "swissprot_entries.txt.gz")
-    interpro_entries_fp = join(sources_dp, "interpro_entries.txt")
-    uniprot_output_files = ["uniprot_facts.txt", "uniprot_metadata.txt", "uniprot_ppi.txt"]
-    uniprot_output_fps = [join(uniprot_dp, fn) for fn in uniprot_output_files]
+    uniprot_output_fps = [join(uniprot_dp, fn) for fn in uniprot_parser.filenames]
     invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in uniprot_output_fps]))
 
     if invalid_md5:
-        uniprot_parser.parse(uniprot_entries_fp, interpro_entries_fp, uniprot_dp)
+        uniprot_parser.parse(sources_dp, uniprot_dp)
         for ofp in uniprot_output_fps:
             export_file_md5(ofp)
     else:
@@ -252,6 +255,21 @@ def main():
             export_file_md5(ofp)
     else:
         print(inf_sym + "MedGen processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
+    
+    # ----------------------------------------------------------------------
+    # processing Cutillas20 files
+    cutillas20_parser = Cutillas20Parser()
+    cutillas20_dp = join(preprocessed_dp, 'cutillas20')
+    mkdir(cutillas20_dp) if not isdir(cutillas20_dp) else None
+    cutillas20_fps = [join(cutillas20_dp, fn) for fn in cutillas20_parser.filenames]
+    invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in cutillas20_fps]))
+
+    if invalid_md5:
+        cutillas20_parser.parse_phosphorylation(sources_dp, cutillas20_dp)
+        for ofp in cutillas20_fps:
+            export_file_md5(ofp)
+    else:
+        print(inf_sym + "Cutillas20 processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
 
 if __name__ == '__main__':
-    main()
+    preprocess_graph()

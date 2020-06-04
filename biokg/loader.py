@@ -20,9 +20,10 @@ def download_uniprot_files(sources_dp, srcs_cp):
     print_section_header("Downloading UniProt data files")
     swissprot_entries_fp = join(sources_dp, "swissprot_entries.txt.gz")
     interpro_list_fp = join(sources_dp, "interpro_entries.txt")
+    pkinfam_fp = join(sources_dp, 'pkinfam.txt')
     download_file_md5_check(srcs_cp["uniprot"]["swissprot_entries"], swissprot_entries_fp)
     download_file_md5_check(srcs_cp["uniprot"]["interpro_list"], interpro_list_fp)
-    
+    download_file_md5_check(srcs_cp['uniprot']['pkinfam'], pkinfam_fp)
     print_bold_line()
 
 
@@ -263,4 +264,20 @@ def download_medgen_data(sources_dp, srcs_cp):
 
     disease_fp = join(sources_dp, "medgen_omim_mappings.txt.gz")
     download_file_md5_check(srcs_cp["medgen"]["medgen_omim_mappings"], disease_fp)
+    print_bold_line()
+
+
+def download_cutillas20_data(sources_dp, srcs_cp):
+    """ Download sider database files
+    Parameters
+    ----------
+    sources_dp : str
+        the sources directory path
+    srcs_cp : RawConfigParser
+        source urls config parser
+    """
+    print_section_header("Downloading Cutillas data files")
+
+    pdts_fp = join(sources_dp, "cutillas20.xlsm")
+    download_file_md5_check(srcs_cp["cutillas20"]["cutillas20_pdt"], pdts_fp)
     print_bold_line()

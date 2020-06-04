@@ -9,6 +9,7 @@ from timeit import default_timer as timer
 import xml.etree.ElementTree as ET
 from zipfile import ZipFile
 from collections import defaultdict
+import pandas as pd
 
 P_UNIPROT_CODE = re.compile("[OPQ][0-9][A-Z0-9][A-Z0-9][A-Z0-9][0-9]")
 P_DISEASE_CODE = re.compile("MIM:\d+")
@@ -178,6 +179,16 @@ class UniProtTxtParser:
         self.filepath = ""
         self.output_dp = ""
         self._interpro_map = {}
+        self._filenames = [
+            "uniprot_facts.txt", 
+            "uniprot_metadata.txt", 
+            "uniprot_ppi.txt",
+            "kinase_family.txt"
+        ]
+
+    @property
+    def filenames(self):
+        return self._filenames
 
     def __parse_txt_entry(self, entry):
         """ Process a Uniprot txt entry
@@ -344,7 +355,7 @@ class UniProtTxtParser:
             if "DISEASE" in comments_cats_dict:
                 disease_codes = re.findall(P_DISEASE_CODE, comments_cats_dict["DISEASE"])
                 for c in disease_codes:
-                    entry_facts.append([entry_code, "RELATED_MIM", c])
+                    entry_facts.append([entry_code, "RELATED_GENETIC_DISORDER", c])
 
         # ------------------------------------------------------------------------
         # Processing FT prefix section [Sequence annotations]
@@ -360,17 +371,61 @@ class UniProtTxtParser:
         else:
             return [], [], []
 
-    def parse(self, filepath, interpro_fp, output_dp):
+    def _parse_pkinfam(self, pkinfam_fp, output_dp):
+        pattern = re.compile('\((?P<acc>[A-Za-z0-9 ]*)\)')
+        kinase_family = {}
+        prev_line = ''
+        header_started = False
+        header_found = False
+        header = ''
+        with open(pkinfam_fp, 'r') as fd:
+            for line in fd:
+                if set(line.strip()) == set('='):
+                    if header_started:
+                        header_started = False
+                        header_found = True
+                        header = prev_line
+                        kinase_family[header] = set()
+                    else:
+                        header_started = True
+                        header_found = False
+                elif header_found:
+                    prev_line = line
+                    accs = [x.strip() for x in pattern.findall(line)]
+                    kinase_family[header].update(accs)
+                else:
+                    prev_line = line
+        
+        output_fd = open(join(output_dp, 'kinase_family.txt'), 'w')
+        for family, kinase_set in kinase_family.items():
+            if family.startswith('Atypical'):
+                parts = family.strip().split()
+                if parts[1] == 'PI3/PI4-kinase':
+                    family_str = 'AT_PI3/PI4'
+                else:
+                    family_str = 'AT_'+parts[1]
+            else:
+                family_str = family.strip().split()[0]
+            for kinase in kinase_set:
+                output_fd.write(f'{kinase}\tKINASE_FAMILY\t{family_str}\n')
+        output_fd.close()
+
+
+    def parse(self, sources_dp, output_dp):
         """ Parse a Uniprot textual data file and output findings to a set of files in a specified directory
 
         Parameters
         ----------
-        filepath : str
-            absolute path to a Uniprot textual data file
+        sources_dp : str
+            absolute path to the sources directory
 
         output_dp : str
             absolute path of the output directory
         """
+        filepath = join(sources_dp, "swissprot_entries.txt.gz")
+        interpro_fp = join(sources_dp, "interpro_entries.txt")
+        pkinfam_fp = join(sources_dp, 'pkinfam.txt')
+
         self.filepath = filepath
         self.output_dp = output_dp
 
@@ -382,6 +437,7 @@ class UniProtTxtParser:
         nb_facts = 0
         nb_metadata = 0
         nb_ppi = 0
+        self._parse_pkinfam(pkinfam_fp, output_dp)
 
         with open(interpro_fp, 'r') as fd:
             next(fd)
@@ -1641,6 +1697,8 @@ class ReactomeParser:
                 else:
                     rel_name = 'GO_MF'
                 go_id = parts[4]
+                if not parts[5].startswith('REACTOME'):
+                    continue
                 reactome_id = parts[5].split(':')[1]
                 output_fd.write(f'{uniprot_id}\t{rel_name}\t{go_id}\t{reactome_id}\t{org}\n')
 
@@ -3131,8 +3189,61 @@ class MedgenParser():
                 mim = parts[1]
                 mim_cat = sanatize_text(parts[9])
                 
-                output_fd.write(f'{mim}\tCATEGORY\t{mim_cat}\n')
+                output_fd.write(f'MIM:{mim}\tCATEGORY\t{mim_cat}\n')
 
         output_fd.close()
+        nb_entries += 1
+        print(done_sym + "Processed (%d) files. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
+
+
+class Cutillas20Parser():
+    def __init__(self):
+        """
+        Initialize Cutillas20 Parser
+        """
+        self._filenames = [
+            'phosphorylation.txt'
+        ]
+
+    @property
+    def filenames(self):
+        """
+        Get Cutillas20 filenames
+
+        Returns
+        -------
+        filename : str
+            the names of the Cutillas output files
+        """
+        return self._filenames
+
+    def parse_phosphorylation(self, source_dp, output_dp):
+        """
+        Parse Cutillas20 files
+
+        Parameters
+        ----------
+        source_dp : str
+            The path to the source directory
+        output_dp : str
+            The path to the output directory
+        """
+        print_section_header(
+            "Parsing Cutillas29 files (%s)" %
+            (bcolors.OKGREEN + source_dp + '/cutillas20.xlsm' + bcolors.ENDC)
+        )
+        start = timer()
+        nb_entries = 0
+
+        input_fp = join(source_dp, 'cutillas20.xlsm' )
+        phos_df = pd.read_excel(input_fp)
+        sub_site_pattern = re.compile("(?P<sub>\w+)\((?P<site>\w+)\)")
+        split_target_df = phos_df['Putative Downtream Target'].str.extract(sub_site_pattern)
+        phos_df['sub'] = split_target_df['sub']
+        phos_df['site'] = split_target_df['site']
+        phos_df['pred'] = 'phosphorylates'
+        phos_df = phos_df.dropna()
+        output_fp = join(output_dp, 'phosphorylation.txt')
+        phos_df[['kinase', 'pred', 'sub', 'site']].to_csv(output_fp, sep='\t', index=False, header=False)
         nb_entries += 1
         print(done_sym + "Processed (%d) files. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
