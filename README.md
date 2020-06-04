@@ -1,6 +1,6 @@
 # biokg
 
-A biological knowledge graph built from available online knowledge bases.
+A knowledge graph for relational learning on biological data.
 
 # Compiling BioKG with docker
 
