@@ -1,6 +1,8 @@
-# biokg
+<img src="https://i.ibb.co/MkVQGCG/biokg-logo-blue.png" alt="biokg-logo" width="300"/>
 
 A knowledge graph for relational learning on biological data.
+
+<br>
 
 # Compiling BioKG with docker
 
