@@ -199,7 +199,7 @@ def extract_tgz_file(file_path, extraction_dir):
     fd.close()
 
 
-def download_file_md5_check(download_url, filepath, username=None, password=None):
+def download_file_md5_check(download_url, filepath, username=None, password=None, bypass_md5=False):
     """ Download file if not existing and have valid md5
 
     Parameters
@@ -214,7 +214,16 @@ def download_file_md5_check(download_url, filepath, username=None, password=None
     md5_filepath = join(md5_dp, filename + ".md5")
 
     require_download = False
-    if isfile(filepath) and isfile(md5_filepath):
+    #File exists with no md5 and bypass_md5 is true
+    #Assumes file is valid and creates md5 for file
+    if bypass_md5 and isfile(filepath) and not isfile(md5_filepath):
+        file_computed_md5 = get_file_md5(filepath)
+        mkdir(md5_dp) if not isdir(md5_dp) else None
+        md5_fd = open(md5_filepath, "w")
+        md5_fd.write(file_computed_md5)
+        md5_fd.close()
+        print(hsh_sym + "md5 hash saved (%s)." % file_computed_md5, flush=True)
+    elif isfile(filepath) and isfile(md5_filepath):
         file_computed_md5 = get_file_md5(filepath)
         file_saved_md5_fd = open(md5_filepath, "r")
         file_saved_md5 = file_saved_md5_fd.read().strip()

@@ -8,10 +8,14 @@
 !run_all.py
 !compile_biokg.py
 !build_benchmarks.py
+!package_data.py
 !biokg
 !links_description.txt
 !meta_description.txt
 !properties_description.txt
-
+!benchmarks_readme.txt
+!biodblinker_data
+!LICENSE
+!README.md
 # exclude the __pycache__ folders
 **/__pycache__

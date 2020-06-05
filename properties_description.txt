@@ -56,18 +56,6 @@ Contains go molecular function annotations of proteins
 # Sources:
 Uniprot
 
-################################################################################
-# protein/protein_mim.txt.gz                                 #
-################################################################################
-
-# Description:
-Contains mims related to proteins
-
-# Format:
-<uniprot_acc>  RELATED_MIM <mim_id>
-
-# Sources:
-Uniprot
 
 ################################################################################
 # protein/sequence_annotations/protein_active_site.txt.gz                      #
@@ -174,19 +162,6 @@ Contains repeat sequence annotations of proteins in InterPro
 Uniprot
 
 ################################################################################
-# protein/sequence_annotations/protein_prosite_sequence_annotation.txt.gz      #
-################################################################################
-
-# Description:
-Contains sequence annotations of proteins in ProSite
-
-# Format:
-<uniprot_acc>  PS_ANNOTATION <PROSITE_ID>
-
-# Sources:
-Uniprot
-
-################################################################################
 # drug/drug_atc_codes.txt.gz                                                   #
 ################################################################################
 
@@ -264,8 +239,61 @@ Contains drugbank pathway categories
 # Sources:
 Drugbank
 
+
 ################################################################################
-# mim/mim_categories.txt.gz                                                    #
+# pathway/pathway_parent.txt.gz                                               #
+################################################################################
+
+# Description:
+Contains relationships between Reactome pathways
+
+# Format:
+<pathway>  HAS_PARENT_PATHWAY <pathway>
+
+# Sources:
+Reactome
+
+################################################################################
+# pathway/pathway_go_biological_process.txt.gz                                 #
+################################################################################
+
+# Description:
+Contains go biological process annotations of Reactome pathways
+
+# Format:
+<pathway_id>  PATHWAY_GO_BP <GO_id>
+
+# Sources:
+Reactome
+
+################################################################################
+# pathway/pathway_go_cellular_component.txt.gz                                 #
+################################################################################
+
+# Description:
+Contains go cellular component annotations of Reactome pathways
+
+# Format:
+<pathway_id>  PATHWAY_GO_CC <GO_id>
+
+# Sources:
+Reactome
+
+################################################################################
+# pathway/pathway_go_molecular_function.txt.gz                                 #
+################################################################################
+
+# Description:
+Contains go molecular function annotations of Reactome pathways
+
+# Format:
+<pathway_id>  PATHWAY_GO_MF <GO_id>
+
+# Sources:
+Reactome
+
+################################################################################
+# genetic_disorders/mim_categories.txt.gz                                      #
 ################################################################################
 
 # Description:

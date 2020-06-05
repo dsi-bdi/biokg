@@ -33,6 +33,7 @@ The biokg is built using the following data sources.
 | [MedGen](https://www.ncbi.nlm.nih.gov/medgen)      | Custom       | https://www.nlm.nih.gov/databases/download/terms_and_conditions.html |
 | [MESH](https://www.ncbi.nlm.nih.gov/mesh)          | Custom       | https://www.nlm.nih.gov/databases/download/terms_and_conditions.html |
 | [InterPro](http://www.ebi.ac.uk/interpro/)         | Custom       | ftp://ftp.ebi.ac.uk/pub/databases/interpro/release_notes.txt         |
+| [SMPDB](https://smpdb.ca/)                         | Custome      | https://smpdb.ca/about                                               |
 
 # Funding
 The development of this module has been fully supported by the CLARIFY project that has received funding from the European Union's Horizon 2020 research and innovation programme under grant agreement No 875160.

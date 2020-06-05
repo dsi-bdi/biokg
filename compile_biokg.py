@@ -7,6 +7,7 @@ import gzip
 kegg_linker = KEGGLinker()
 sider_linker = SiderLinker()
 mesh_linker = MESHLinker()
+
 data_root = 'data/preprocessed'
 output_root = 'data/output'
 core_root = 'data/biokg'
@@ -297,7 +298,6 @@ def get_all_protein_sequence_annotations(protein_set):
         'HOMOLOGOUS_SUPERFAMILY': open(join(seq_ann_root, 'protein_homologous_superfamily.txt'), 'w'),
         'PTM': open(join(seq_ann_root, 'protein_ptm.txt'), 'w'),
         'REPEAT': open(join(seq_ann_root, 'protein_repeat.txt'), 'w'),
-        'PS_SEQ_ANN': open(join(seq_ann_root, 'protein_prosite_sequence_annotation.txt'), 'w'),
         'GO_BP': open(join(protein_properties_root, 'protein_go_biological_process.txt'), 'w'),
         'GO_CC': open(join(protein_properties_root, 'protein_go_cellular_component.txt'), 'w'),
         'GO_MF': open(join(protein_properties_root, 'protein_go_molecular_function.txt'), 'w'),
@@ -1127,6 +1127,51 @@ def generate_core_metadata():
     generate_meta('pathway', join(meta_root, 'pathway'))
 
 
+def write_cell_names():
+    cellname_set = set()
+    cell_meta = join(meta_root, 'cell')
+    makedirs(cell_meta) if not isdir(cell_meta) else None
+
+    with open(join(data_root, 'cellosaurus', 'cl_map.txt')) as fd:
+        for line in fd:
+            name, cell_line = line.strip().split('\t')
+
+            cellname_set.add((cell_line, name))
+
+    with open(join(cell_meta, 'cell_names.txt'), 'w') as output:
+        for cell_line, name in cellname_set:
+            output.write(f'{cell_line}\tNAME\t{name}\n')
+
+
+def write_pathway_names():
+    pathway_names = set()
+    pathway_meta = join(meta_root, 'pathway')
+    reactome_pathway_names = join(data_root, 'reactome', 'reactome_pathway_names.txt')
+    smpdb_pathway_names = join(data_root, 'smpdb', 'smpdb_pathway_names.txt')
+    makedirs(pathway_meta) if not isdir(pathway_meta) else None
+
+    kegg_pathways = kegg_linker.pathway_ids
+
+    for pathway in kegg_pathways:
+        names = kegg_linker.convert_pathway_to_names([pathway])
+        for name in names[0]:
+            pathway_names.add((pathway, name))
+
+    with open(reactome_pathway_names, 'r') as fd:
+        for line in fd:
+            pathway, _, name = line.strip().split('\t')
+            pathway_names.add((pathway, name))
+
+    with open(smpdb_pathway_names, 'r') as fd:
+        for line in fd:
+            pathway, _, name = line.strip().split('\t')
+            pathway_names.add((pathway, name))
+
+    with open(join(pathway_meta, 'pathway_names.txt'), 'w') as output:
+        for pathway, name in pathway_names:
+            output.write(f'{pathway}\tNAME\t{name}\n')
+
+
 def compile_graph():
     # Get the set of proteins, drugs and diseases to use and write metadata
     print('Writing Metadata')
@@ -1178,9 +1223,9 @@ def compile_graph():
 
     triples = get_pathway_rels()
     print(f'{len(triples)} pathway rels')
-    reactome_meta = join(meta_root, 'pathway')
-    makedirs(reactome_meta) if not isdir(reactome_meta) else None
-    write_triples(triples, join(reactome_meta, 'pathway_parent.txt'))
+    #reactome_meta = join(meta_root, 'pathway')
+
+    write_triples(triples, join(pathway_properties_root, 'pathway_parent.txt'))
 
     triples = get_all_drug_pathway_associations(drug_set)
     print(f'{len(triples)} drug pathway associations')
@@ -1218,6 +1263,8 @@ def compile_graph():
 
     write_protein_cellline_expressions(protein_set)
     write_pathway_go_annotations()
+    write_cell_names()
+    write_pathway_names()
 
     copy(
         join(data_root, 'medgen', 'mim_categories.txt'),
@@ -1347,9 +1394,9 @@ def compile_graph():
     compress_folder(output_root)
 
     #Copy readmes to output
-    copy('links_description.txt', join(links_root, 'README.txt'))
-    copy('properties_description.txt', join(properties_root, 'README.txt'))
-    copy('meta_description.txt', join(meta_root, 'README.txt'))
+    #copy('links_description.txt', join(links_root, 'README.txt'))
+    #copy('properties_description.txt', join(properties_root, 'README.txt'))
+    #copy('meta_description.txt', join(meta_root, 'README.txt'))
 
 
 if __name__ == '__main__':

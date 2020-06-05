@@ -178,4 +178,28 @@ Contains relationships between complexes and their top level pathways
 # Sources:
 Reactome
 
+################################################################################
+# disease_genetic_disorders.txt.gz                                             #
+################################################################################
 
+# Description:
+Contains relationships between MeSH diseases and OMIM genetic disorders
+
+# Format:
+<mesh_id>  DISEASE_GENETIC_DISORDER <omim_id>
+
+# Sources:
+KEGG
+
+################################################################################
+# protein_genetic_disorders.txt.gz                                             #
+################################################################################
+
+# Description:
+Contains relationships between proteins and OMIM genetic disorders
+
+# Format:
+<uniprot_acc>  RELATED_GENETIC_DISORDER <omim_id>
+
+# Sources:
+KEGG

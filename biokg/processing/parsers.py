@@ -740,6 +740,8 @@ class CellosaurusParser:
         cat_file_line = f"{entry_code}\t{entry_names}\t{entry_species}\t{entry_sex}\t{entry_category}\t{entry_disease}\n"
         self.__file_handlers_map["cat"].write(cat_file_line)
         for name in entry_names_list:
+            if len(name) == 0:
+                continue
             self.__file_handlers_map["map"].write(f"{name}\t{entry_code}\n")
 
         self.__file_handlers_map["geo"].write(f"{entry_code}\t{entry_geos}\n") if entry_geos != "" else None
@@ -1498,7 +1500,8 @@ class ReactomeParser:
             "reactome_pathway_rels.txt",
             "reactome_complex_pathway_rels.txt",
             "reactome_go_mapping.txt",
-            "reactome_isoform_pathway.txt"
+            "reactome_isoform_pathway.txt",
+            "reactome_pathway_names.txt"
         ]
 
     @property
@@ -1704,6 +1707,25 @@ class ReactomeParser:
 
         output_fd.close()
 
+    def __parse_pathway_names(self, source_fp, output_fp):
+        """
+        Parse reactome pathway names
+
+        Parameters
+        ----------
+        source_fp : str
+            The path to the reactome pathways file
+        output_fp : str
+            The path to the output file
+        """
+        output_fd = SetWriter(output_fp)
+        with open(source_fp, 'r') as fd:
+            for line in fd:
+                pathway, name, species = line.strip().split('\t')
+                output_fd.write(f'{pathway}\tNAME\t{name}\n')
+        output_fd.close()
+
+
     def parse_reactome(self, source_dp, output_dp):
         """
         Parse reactome files
@@ -1753,6 +1775,10 @@ class ReactomeParser:
         self.__parse_omim_mappings(
             join(source_dp, "reactome_omim_mapping.txt"),
             join(output_dp, "reactome_isoform_pathway.txt")
+        )
+        self.__parse_pathway_names(
+            join(source_dp, "reactome_pathway_list.txt"),
+            join(output_dp, "reactome_pathway_names.txt")   
         )
         nb_entries += 1
         print(done_sym + "Processed (%d) files. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
@@ -3245,5 +3271,59 @@ class Cutillas20Parser():
         phos_df = phos_df.dropna()
         output_fp = join(output_dp, 'phosphorylation.txt')
         phos_df[['kinase', 'pred', 'sub', 'site']].to_csv(output_fp, sep='\t', index=False, header=False)
+        nb_entries += 1
+        print(done_sym + "Processed (%d) files. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
+
+
+class SmpdbParser():
+    def __init__(self):
+        """
+        Initialize SmpdbParser Parser
+        """
+        self._filenames = [
+            'smpdb_pathway_names.txt'
+        ]
+
+    @property
+    def filenames(self):
+        """
+        Get SmpdbParser filenames
+
+        Returns
+        -------
+        filename : str
+            the names of the Cutillas output files
+        """
+        return self._filenames
+
+    def parse_pathways(self, source_dp, output_dp):
+        """
+        Parse Smpdb files
+
+        Parameters
+        ----------
+        source_dp : str
+            The path to the source directory
+        output_dp : str
+            The path to the output directory
+        """
+        print_section_header(
+            "Parsing SMPDB files (%s)" %
+            (bcolors.OKGREEN + source_dp + '/smpdb_pathways.csv.zip' + bcolors.ENDC)
+        )
+        start = timer()
+        nb_entries = 0
+
+        input_fp = join(source_dp, 'smpdb_pathways.csv.zip')
+        filename = 'smpdb_pathways.csv'
+        output_fp = join(output_dp, 'smpdb_pathway_names.txt')
+
+        with ZipFile(input_fp, 'r') as dbzip:
+            with dbzip.open(filename, 'r', force_zip64=True) as fd:
+                df = pd.read_csv(fd)
+                df['pred'] = 'NAME'
+                op = df[['SMPDB ID', 'pred', 'Name']]
+                op.to_csv(output_fp, sep='\t', index=False, header=False)
+                
         nb_entries += 1
         print(done_sym + "Processed (%d) files. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
