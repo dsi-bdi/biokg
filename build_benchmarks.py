@@ -2,6 +2,7 @@ from os import makedirs
 from os.path import join, isdir
 import gzip
 from biodblinker import GeneNameLinker
+from shutil import copy
 
 def export_triplets(triplets, filepath):
     """ Export triplets to file
@@ -123,9 +124,9 @@ def build_benchmarks(preprocessed_dp, output_dp):
     
     with open(psp_phos_fp, 'r') as fd:
         for line in fd:
-            kin, _, sub = line.strip().split('\t')[:3]
+            kin, _, sub, site = line.strip().split('\t')[:4]
             if kin in human_uniprot_ids and sub in human_uniprot_ids:
-                psp_set.add((kin, sub))
+                psp_set.add((kin, sub, site))
 
     with open(cutillas20_fp, 'r') as fd:
         for line in fd:
@@ -133,23 +134,28 @@ def build_benchmarks(preprocessed_dp, output_dp):
             if len(parts) < 4:
                 print(line)
                 continue
-            kin_gene, _, sub_gene = parts[:3]
+            kin_gene, _, sub_gene, site = parts[:4]
             kin_uniprot_ids, sub_uniprot_ids = linker.convert_gene_name_to_uniprot([kin_gene, sub_gene])
             for kin in kin_uniprot_ids:
                 if kin in human_uniprot_ids:
                     for sub in sub_uniprot_ids:
                         if sub in human_uniprot_ids:
-                            cutillas_set.add((kin, sub))
+                            cutillas_set.add((kin, sub, site))
 
     phosphorylation_set = psp_set.union(cutillas_set)
-    phos_triplets = [[kin, 'phosphorylates', sub] for kin, sub in phosphorylation_set]
-    export_triplets(phos_triplets, phos_fp)
+    phos_quads = [[kin, 'phosphorylates', sub, site] for kin, sub, site in phosphorylation_set]
+    
+    fd = open(phos_fp, "w")
+    for s, p, o, c in phos_quads:
+        fd.write(f"{s}\t{p}\t{o}\t{c}\n")
+    fd.close()
 
 
 def main():
     preprocessed_dp = "./data/preprocessed"
     output_dp = "./data/output"
     build_benchmarks(preprocessed_dp, output_dp)
+    copy('benchmarks_readme.txt', join(output_dp, 'benchmarks', 'README.txt'))
 
 
 if __name__ == '__main__':

@@ -1,4 +1,4 @@
-FROM python:3-slim
+FROM python:3-stretch
 
 COPY . /biokg
 WORKDIR /biokg

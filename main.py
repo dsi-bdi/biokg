@@ -79,6 +79,9 @@ def preprocess_graph():
 
     # download Cutillas 20 data
     download_cutillas20_data(sources_dp=sources_dp, srcs_cp=sources_urls)
+
+    # download SMPDB data
+    download_smpdb_data(sources_dp=sources_dp, srcs_cp=sources_urls)
     # ----------------------------------------------------------------------
     # processing uniprot entries file
     uniprot_parser = UniProtTxtParser()
@@ -255,7 +258,7 @@ def preprocess_graph():
             export_file_md5(ofp)
     else:
         print(inf_sym + "MedGen processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
-    
+
     # ----------------------------------------------------------------------
     # processing Cutillas20 files
     cutillas20_parser = Cutillas20Parser()
@@ -270,6 +273,22 @@ def preprocess_graph():
             export_file_md5(ofp)
     else:
         print(inf_sym + "Cutillas20 processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
+
+    # ----------------------------------------------------------------------
+    # processing SMPDB files
+    smpdb_parser = SmpdbParser()
+    smpdb_dp = join(preprocessed_dp, 'smpdb')
+    mkdir(smpdb_dp) if not isdir(smpdb_dp) else None
+    smpdb_fps = [join(smpdb_dp, fn) for fn in smpdb_parser.filenames]
+    invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in smpdb_fps]))
+
+    if invalid_md5:
+        smpdb_parser.parse_pathways(sources_dp, smpdb_dp)
+        for ofp in smpdb_fps:
+            export_file_md5(ofp)
+    else:
+        print(inf_sym + "SMPDB processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
+
 
 if __name__ == '__main__':
     preprocess_graph()

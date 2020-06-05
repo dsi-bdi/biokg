@@ -4,7 +4,7 @@ from configparser import RawConfigParser
 from .util.io import *
 from .util.extras import *
 from os.path import join
-
+import sys
 
 def download_uniprot_files(sources_dp, srcs_cp):
     """ Download uniprot database files
@@ -85,6 +85,7 @@ def download_reactome_data(sources_dp, srcs_cp):
     reactome_complex_pathway_rels_fp = join(sources_dp, "reactome_complex_pathway_rels.txt")
     reactome_go_mapping_fp = join(sources_dp, "reactome_go_mapping.txt.gz")
     reactome_omim_mapping_fp = join(sources_dp, "reactome_omim_mapping.txt")
+    reactome_pathway_list_fp = join(sources_dp, "reactome_pathway_list.txt")
 
     download_file_md5_check(srcs_cp["reactome"]["reactome_ppi"], reactome_ppi_fp)
     download_file_md5_check(srcs_cp["reactome"]["reactome_pathway_rels"], reactome_pathway_rels_fp)
@@ -92,6 +93,7 @@ def download_reactome_data(sources_dp, srcs_cp):
     download_file_md5_check(srcs_cp["reactome"]["reactome_complex_pathway_rels"], reactome_complex_pathway_rels_fp)
     download_file_md5_check(srcs_cp["reactome"]["reactome_go_mapping"], reactome_go_mapping_fp)
     download_file_md5_check(srcs_cp["reactome"]["reactome_omim_mapping"], reactome_omim_mapping_fp)
+    download_file_md5_check(srcs_cp["reactome"]["reactome_pathway_list"], reactome_pathway_list_fp)
 
     print_bold_line()
 
@@ -120,12 +122,19 @@ def download_ctd_data(sources_dp, srcs_cp):
     ctd_disease_biological_process = join(sources_dp,'CTD_disease_biological_process.tsv.gz')
     ctd_chemical_phenotype = join(sources_dp,'CTD_chemical_phenotype.tsv.gz')
 
+    try:
+        download_file_md5_check(srcs_cp["ctd"]["gene_disease_association"], ctd_gene_disease_association, bypass_md5=True)
+    except Exception as _:
+        print()
+        print(f'Unable to download {srcs_cp["ctd"]["gene_disease_association"]}')
+        print('Please download manually through a browser and place in the data/sources folder')
+        sys.exit(-1)
+
     download_file_md5_check(srcs_cp["ctd"]["chemical_id_mapping"], ctd_chemical_id_mapping)
     download_file_md5_check(srcs_cp["ctd"]["gene_id_mapping"], ctd_gene_id_mapping)
     download_file_md5_check(srcs_cp["ctd"]["chemical_gene_interactions"], ctd_chemical_gene_interactions)
     download_file_md5_check(srcs_cp["ctd"]["chemical_disase_association"], ctd_chemical_disase_association)
     download_file_md5_check(srcs_cp["ctd"]["chemical_pathway_association"], ctd_chemical_pathway_association)
-    download_file_md5_check(srcs_cp["ctd"]["gene_disease_association"], ctd_gene_disease_association)
     download_file_md5_check(srcs_cp["ctd"]["gene_pathway_association"], ctd_gene_pathway_association)
     download_file_md5_check(srcs_cp["ctd"]["disease_pathway_assiciation"], ctd_disease_pathway_assiciation)
     download_file_md5_check(srcs_cp["ctd"]["disease_molecular_function"], ctd_disease_molecular_function)
@@ -216,7 +225,7 @@ def download_drugbank_data(sources_dp, srcs_cp, username, password):
 
 
 def download_kegg_data(sources_dp, srcs_cp):
-    """ Download sider database files
+    """ Download kegg database files
     Parameters
     ----------
     sources_dp : str
@@ -234,7 +243,7 @@ def download_kegg_data(sources_dp, srcs_cp):
 
 
 def download_mesh_data(sources_dp, srcs_cp):
-    """ Download sider database files
+    """ Download mesh database files
     Parameters
     ----------
     sources_dp : str
@@ -252,7 +261,7 @@ def download_mesh_data(sources_dp, srcs_cp):
 
 
 def download_medgen_data(sources_dp, srcs_cp):
-    """ Download sider database files
+    """ Download medgen database files
     Parameters
     ----------
     sources_dp : str
@@ -268,7 +277,7 @@ def download_medgen_data(sources_dp, srcs_cp):
 
 
 def download_cutillas20_data(sources_dp, srcs_cp):
-    """ Download sider database files
+    """ Download Cutillas20 database files
     Parameters
     ----------
     sources_dp : str
@@ -280,4 +289,20 @@ def download_cutillas20_data(sources_dp, srcs_cp):
 
     pdts_fp = join(sources_dp, "cutillas20.xlsm")
     download_file_md5_check(srcs_cp["cutillas20"]["cutillas20_pdt"], pdts_fp)
+    print_bold_line()
+
+
+def download_smpdb_data(sources_dp, srcs_cp):
+    """ Download Cutillas20 database files
+    Parameters
+    ----------
+    sources_dp : str
+        the sources directory path
+    srcs_cp : RawConfigParser
+        source urls config parser
+    """
+    print_section_header("Downloading Cutillas data files")
+
+    pathways_fp = join(sources_dp, "smpdb_pathways.csv.zip")
+    download_file_md5_check(srcs_cp["smpdb"]["smpdb_pathways"], pathways_fp)
     print_bold_line()
