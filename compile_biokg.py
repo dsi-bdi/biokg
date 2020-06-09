@@ -1332,7 +1332,6 @@ def compile_graph():
             'gene_network.txt',
             'glycan_pathway.txt',
             'network_disease.txt',
-            'network_drug.txt',
             'network_pathway.txt',
             'disease_meta.txt'
         ]

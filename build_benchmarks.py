@@ -107,14 +107,14 @@ def build_benchmarks(preprocessed_dp, output_dp):
     # ================================================================================================
     # Build Phosphorylation benchmark
     # ------------------------------------------------------------------------------------------------
-    # Benchmark #1: Human Kinase Substrate phosphorylation interactions from phosphosite plus and Cutillas 20
+    # Benchmark #1: Human Kinase Substrate phosphorylation interactions from phosphosite plus and Hijazi 20
     # ------------------------------------------------------------------------------------------------
     linker = GeneNameLinker()
     human_uniprot_ids = set()
     psp_set = set()
-    cutillas_set = set()
+    hijazi20_set = set()
     psp_phos_fp = join(preprocessed_dp, 'phosphosite', 'kinase_substrate.txt')
-    cutillas20_fp = join(preprocessed_dp, 'cutillas20', 'phosphorylation.txt')
+    hijazi20_fp = join(preprocessed_dp, 'hijazi20', 'phosphorylation.txt')
     phos_fp = join(benchmarks_dp, 'phosphorylation.tsv')
     with open(join(preprocessed_dp, 'uniprot', 'uniprot_metadata.txt'), 'r') as fd:
         for line in fd:
@@ -128,7 +128,7 @@ def build_benchmarks(preprocessed_dp, output_dp):
             if kin in human_uniprot_ids and sub in human_uniprot_ids:
                 psp_set.add((kin, sub, site))
 
-    with open(cutillas20_fp, 'r') as fd:
+    with open(hijazi20_fp, 'r') as fd:
         for line in fd:
             parts = line.strip().split('\t')
             if len(parts) < 4:
@@ -140,9 +140,9 @@ def build_benchmarks(preprocessed_dp, output_dp):
                 if kin in human_uniprot_ids:
                     for sub in sub_uniprot_ids:
                         if sub in human_uniprot_ids:
-                            cutillas_set.add((kin, sub, site))
+                            hijazi20_set.add((kin, sub, site))
 
-    phosphorylation_set = psp_set.union(cutillas_set)
+    phosphorylation_set = psp_set.union(hijazi20_set)
     phos_quads = [[kin, 'phosphorylates', sub, site] for kin, sub, site in phosphorylation_set]
     
     fd = open(phos_fp, "w")

@@ -77,8 +77,8 @@ def preprocess_graph():
     # download mesh source data
     download_mesh_data(sources_dp=sources_dp, srcs_cp=sources_urls)
 
-    # download Cutillas 20 data
-    download_cutillas20_data(sources_dp=sources_dp, srcs_cp=sources_urls)
+    # download Hijazi20 data
+    download_hijazi20_data(sources_dp=sources_dp, srcs_cp=sources_urls)
 
     # download SMPDB data
     download_smpdb_data(sources_dp=sources_dp, srcs_cp=sources_urls)
@@ -260,19 +260,19 @@ def preprocess_graph():
         print(inf_sym + "MedGen processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
 
     # ----------------------------------------------------------------------
-    # processing Cutillas20 files
-    cutillas20_parser = Cutillas20Parser()
-    cutillas20_dp = join(preprocessed_dp, 'cutillas20')
-    mkdir(cutillas20_dp) if not isdir(cutillas20_dp) else None
-    cutillas20_fps = [join(cutillas20_dp, fn) for fn in cutillas20_parser.filenames]
-    invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in cutillas20_fps]))
+    # processing Hijazi20 files
+    hijazi20_parser = Hijazi20Parser()
+    hijazi20_dp = join(preprocessed_dp, 'hijazi20')
+    mkdir(hijazi20_dp) if not isdir(hijazi20_dp) else None
+    hijazi20_fps = [join(hijazi20_dp, fn) for fn in hijazi20_parser.filenames]
+    invalid_md5 = bool(sum([not file_has_valid_md5(ofp) for ofp in hijazi20_fps]))
 
     if invalid_md5:
-        cutillas20_parser.parse_phosphorylation(sources_dp, cutillas20_dp)
-        for ofp in cutillas20_fps:
+        hijazi20_parser.parse_phosphorylation(sources_dp, hijazi20_dp)
+        for ofp in hijazi20_fps:
             export_file_md5(ofp)
     else:
-        print(inf_sym + "Cutillas20 processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
+        print(inf_sym + "Hijazi20 processed files exists with valid md5 hashes %s. >>> Parsing not required." % done_sym)
 
     # ----------------------------------------------------------------------
     # processing SMPDB files
