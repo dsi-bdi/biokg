@@ -1233,7 +1233,6 @@ class KeggParser:
             'gene_drug.txt',
             'gene_pathway.txt',
             'network_disease.txt',
-            'network_drug.txt',
             'network_pathway.txt',
             'disease_meta.txt'
         ]
@@ -3222,10 +3221,10 @@ class MedgenParser():
         print(done_sym + "Processed (%d) files. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
 
 
-class Cutillas20Parser():
+class Hijazi20Parser():
     def __init__(self):
         """
-        Initialize Cutillas20 Parser
+        Initialize Hijazi20 Parser
         """
         self._filenames = [
             'phosphorylation.txt'
@@ -3234,18 +3233,18 @@ class Cutillas20Parser():
     @property
     def filenames(self):
         """
-        Get Cutillas20 filenames
+        Get Hijazi20 filenames
 
         Returns
         -------
         filename : str
-            the names of the Cutillas output files
+            the names of the Hijazi20 output files
         """
         return self._filenames
 
     def parse_phosphorylation(self, source_dp, output_dp):
         """
-        Parse Cutillas20 files
+        Parse Hijazi files
 
         Parameters
         ----------
@@ -3255,13 +3254,13 @@ class Cutillas20Parser():
             The path to the output directory
         """
         print_section_header(
-            "Parsing Cutillas29 files (%s)" %
-            (bcolors.OKGREEN + source_dp + '/cutillas20.xlsm' + bcolors.ENDC)
+            "Parsing Hijazi20 files (%s)" %
+            (bcolors.OKGREEN + source_dp + '/hijazi20.xlsm' + bcolors.ENDC)
         )
         start = timer()
         nb_entries = 0
 
-        input_fp = join(source_dp, 'cutillas20.xlsm' )
+        input_fp = join(source_dp, 'hijazi20.xlsm' )
         phos_df = pd.read_excel(input_fp)
         sub_site_pattern = re.compile("(?P<sub>\w+)\((?P<site>\w+)\)")
         split_target_df = phos_df['Putative Downtream Target'].str.extract(sub_site_pattern)
@@ -3292,7 +3291,7 @@ class SmpdbParser():
         Returns
         -------
         filename : str
-            the names of the Cutillas output files
+            the names of the SMPDB output files
         """
         return self._filenames
 

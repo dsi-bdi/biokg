@@ -276,8 +276,8 @@ def download_medgen_data(sources_dp, srcs_cp):
     print_bold_line()
 
 
-def download_cutillas20_data(sources_dp, srcs_cp):
-    """ Download Cutillas20 database files
+def download_hijazi20_data(sources_dp, srcs_cp):
+    """ Download Hijazi20 database files
     Parameters
     ----------
     sources_dp : str
@@ -285,10 +285,10 @@ def download_cutillas20_data(sources_dp, srcs_cp):
     srcs_cp : RawConfigParser
         source urls config parser
     """
-    print_section_header("Downloading Cutillas data files")
+    print_section_header("Downloading Hijazi20 data files")
 
-    pdts_fp = join(sources_dp, "cutillas20.xlsm")
-    download_file_md5_check(srcs_cp["cutillas20"]["cutillas20_pdt"], pdts_fp)
+    pdts_fp = join(sources_dp, "hijazi20.xlsm")
+    download_file_md5_check(srcs_cp["hijazi20"]["hijazi20_pdt"], pdts_fp)
     print_bold_line()
 
 
