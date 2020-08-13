@@ -5,6 +5,7 @@ from .util.io import *
 from .util.extras import *
 from os.path import join
 import sys
+from shutil import copyfile
 
 def download_uniprot_files(sources_dp, srcs_cp):
     """ Download uniprot database files
@@ -141,7 +142,8 @@ def download_ctd_data(sources_dp, srcs_cp):
     download_file_md5_check(srcs_cp["ctd"]["disease_cellular_component"], ctd_disease_cellular_component)
     download_file_md5_check(srcs_cp["ctd"]["disease_biological_process"], ctd_disease_biological_process)
     download_file_md5_check(srcs_cp["ctd"]["chemical_phenotype"], ctd_chemical_phenotype)
-
+    if isfile('chemical_drugbank.txt.gz'):
+        copyfile('chemical_drugbank.txt.gz', join(sources_dp, 'chemical_drugbank.txt.gz'))
     print_bold_line()
     
 def download_phosphosite_data(sources_dp, srcs_cp):
