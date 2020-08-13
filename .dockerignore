@@ -17,5 +17,6 @@
 !biodblinker_data
 !LICENSE
 !README.md
+!chemical_drugbank.txt.gz
 # exclude the __pycache__ folders
 **/__pycache__

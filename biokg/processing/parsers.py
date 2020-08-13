@@ -1841,20 +1841,30 @@ class CTDParser:
         chem_id_map = {}
         with gzip.open(chemical_id_mapping_fp, 'rt') as chem_map_fd:
             for line in chem_map_fd:
-                if line.startswith('#'):
-                    continue
-                parts = line.strip().split('\t')
-                if len(parts) >= 9:
-                    nb_entries += 1
-                    chem_id = parts[1].replace('MESH:', '')
-                    drug_ids = parts[8].split('|')
-                    if len(drug_ids) > 0:
-                        chem_id_map[chem_id] = drug_ids
+                nb_entries += 1
+                chem_id, drugs = line.strip().split('\t')
+                chem_id_map[chem_id] = drugs.split(';')
+                if nb_entries % 5 == 0:
+                    speed = nb_entries / (timer() - start)
+                    msg = prc_sym + "Processed (%d) entries.  Speed: (%1.5f) entries/second" % (nb_entries, speed)
+                    print("\r" + msg, end="", flush=True)
+        
+        # with gzip.open(chemical_id_mapping_fp, 'rt') as chem_map_fd:
+        #     for line in chem_map_fd:
+        #         if line.startswith('#'):
+        #             continue
+        #         parts = line.strip().split('\t')
+        #         if len(parts) >= 9:
+        #             nb_entries += 1
+        #             chem_id = parts[1].replace('MESH:', '')
+        #             drug_ids = parts[8].split('|')
+        #             if len(drug_ids) > 0:
+        #                 chem_id_map[chem_id] = drug_ids
 
-                    if nb_entries % 5 == 0:
-                        speed = nb_entries / (timer() - start)
-                        msg = prc_sym + "Processed (%d) entries.  Speed: (%1.5f) entries/second" % (nb_entries, speed)
-                        print("\r" + msg, end="", flush=True)
+        #             if nb_entries % 5 == 0:
+        #                 speed = nb_entries / (timer() - start)
+        #                 msg = prc_sym + "Processed (%d) entries.  Speed: (%1.5f) entries/second" % (nb_entries, speed)
+        #                 print("\r" + msg, end="", flush=True)
 
         print(done_sym + "Processed (%d) entries. Took %1.2f Seconds." % (nb_entries, timer() - start), flush=True)
         return chem_id_map
@@ -2539,7 +2549,7 @@ class CTDParser:
         nb_entries = 0
 
         self._chem_id_map = self.__parse_chemical_id_map(
-            join(source_dp, "CTD_chemicals.tsv.gz")
+            join(source_dp, "chemical_drugbank.txt.gz")
         )
         nb_entries += 1
 
