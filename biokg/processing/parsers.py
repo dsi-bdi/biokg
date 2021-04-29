@@ -1687,6 +1687,9 @@ class ReactomeParser:
             next(mappings_fd)
             for line in mappings_fd:
                 parts = line.strip().split('\t')
+                
+                if 'generated-by: ' in parts[0] or 'date-generated: ' in parts[0]:
+                    continue
 
                 org = parts[12].split(':')[1]
                 uniprot_id = parts[1]
