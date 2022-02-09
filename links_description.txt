@@ -90,7 +90,7 @@ Reactome
 Contains relationshiphips between proteins and diseases
 
 # Format:
-<uniprot_acc>  MEMBER_OF_COMPLEX <mesh_id>
+<uniprot_acc>  PROTEIN_DISEASE_ASSOCIATION <mesh_id>
 
 # Sources:
 Uniprot
