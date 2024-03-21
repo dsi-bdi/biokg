@@ -17,6 +17,15 @@ cd biokg
 ```bash
 pip install -r requirements.txt
 ```
+BioKG also requires `wget`. Install it with:
+Ubuntu:
+```bash
+sudo apt install wget
+```
+MacOS:
+```bash
+brew install wget
+```
 
 ## Compile the BioKG
 ```bash
