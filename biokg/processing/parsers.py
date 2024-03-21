@@ -590,7 +590,7 @@ class HumanProteinAtlasParser:
         start = timer()
         nb_entries = 0
         for event, entry in ET.iterparse(xml_fd, events=('start', 'end')):
-            if entry.tag == "entry" and event == "end" and len(entry.getchildren()) > 2:
+            if entry.tag == "entry" and event == "end" and len(list(entry)) > 2:
                 nb_entries += 1
                 if nb_entries % 5 == 0:
                     speed = nb_entries / (timer() - start)
@@ -1684,6 +1684,9 @@ class ReactomeParser:
         output_fd = SetWriter(output_fp)
         with gzip.open(mappings_fp, 'rt') as mappings_fd:
             # Skip version line
+            next(mappings_fd)
+            next(mappings_fd)
+            next(mappings_fd)
             next(mappings_fd)
             for line in mappings_fd:
                 parts = line.strip().split('\t')
