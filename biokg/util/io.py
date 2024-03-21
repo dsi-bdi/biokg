@@ -12,7 +12,7 @@ from os.path import join, basename, isfile, isdir, dirname
 from os import mkdir
 import requests
 from .extras import *
-
+import subprocess
 
 def download_file_with_cert(url, local_path, checksum=None, cert=None):
     """
@@ -121,13 +121,13 @@ def download_file_with_auth(url, local_path, username, password, checksum=None):
     file_name = url.split('/')[-1]
     tmp_file = os.path.join(tmp_dir, file_name)
     
-    with requests.get(url, auth=(username, password)) as r:
-        if r.status_code == 200:
-            with open(tmp_file, 'wb') as out:
-                for bits in r.iter_content():
-                    out.write(bits)
-        else:
-            raise ValueError(f'Error downloading {url} status: {r.status_code}')
+
+        # create a temporary file to download to
+    tmp_dir = gettempdir()
+    file_name = url.split('/')[-1]
+    tmp_file = os.path.join(tmp_dir, file_name)
+    completed_process=subprocess.run(['wget',url,'--user',username,'--password',password,'-O',tmp_file])
+    completed_process.check_returncode()
     # check the checksum if provided
     if not (checksum is None):
         # compute the checksum of the file
